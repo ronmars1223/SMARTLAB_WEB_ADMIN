@@ -3,20 +3,15 @@ import React, { useState } from "react";
 import { ref, push, update, remove } from "firebase/database";
 import { database } from "../../firebase";
 import CategoryModal from "./CategoryModal";
-import "./success_alert.css";
-import "./delete_confirm.css";
+import "./CategoriesTab.css";
 
 // Delete Confirmation Modal Component
 function DeleteConfirmModal({ category, onConfirm, onCancel }) {
   return (
     <div className="delete-modal-overlay">
       <div className="delete-modal-container">
-        <div className="delete-modal-icon">
-          ⚠️
-        </div>
-        <h2 className="delete-modal-title">
-          Delete Category
-        </h2>
+        <div className="delete-modal-icon">⚠️</div>
+        <h2 className="delete-modal-title">Delete Category</h2>
         <p className="delete-modal-message">
           Are you sure you want to delete the category "{category.title}"?
         </p>
@@ -25,16 +20,10 @@ function DeleteConfirmModal({ category, onConfirm, onCancel }) {
           associated with this category. This action cannot be undone.
         </p>
         <div className="delete-modal-actions">
-          <button
-            onClick={onCancel}
-            className="delete-modal-cancel"
-          >
+          <button onClick={onCancel} className="delete-modal-cancel">
             Cancel
           </button>
-          <button
-            onClick={onConfirm}
-            className="delete-modal-confirm"
-          >
+          <button onClick={onConfirm} className="delete-modal-confirm">
             Delete Category
           </button>
         </div>
@@ -43,24 +32,15 @@ function DeleteConfirmModal({ category, onConfirm, onCancel }) {
   );
 }
 
-// Success Modal Component (from previous implementation)
+// Success Modal Component
 function SuccessModal({ message, onClose }) {
   return (
     <div className="success-modal-overlay">
       <div className="success-modal-container">
-        <div className="success-modal-icon">
-          ✅
-        </div>
-        <h2 className="success-modal-title">
-          Success
-        </h2>
-        <p className="success-modal-message">
-          {message}
-        </p>
-        <button
-          onClick={onClose}
-          className="success-modal-button"
-        >
+        <div className="success-modal-icon">✅</div>
+        <h2 className="success-modal-title">Success</h2>
+        <p className="success-modal-message">{message}</p>
+        <button onClick={onClose} className="success-modal-button">
           OK
         </button>
       </div>
@@ -146,7 +126,7 @@ export default function CategoriesTab({ categories, onCategorySelect, onCategori
   };
 
   return (
-    <div>
+    <div className="categories-container">
       {/* Delete Confirmation Modal */}
       {categoryToDelete && (
         <DeleteConfirmModal 
@@ -164,46 +144,38 @@ export default function CategoriesTab({ categories, onCategorySelect, onCategori
         />
       )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <h2>Equipment Categories</h2>
+      {/* Header */}
+      <div className="categories-header">
+        <h2 className="categories-title">Equipment Categories</h2>
         <button
           onClick={() => setShowAddCategoryForm(true)}
-          style={{
-            padding: "10px 20px",
-            backgroundColor: "#3b82f6",
-            color: "#fff",
-            border: "none",
-            borderRadius: "6px",
-            cursor: "pointer",
-            fontSize: "14px",
-            fontWeight: "500",
-            transition: "background-color 0.2s"
-          }}
-          onMouseEnter={(e) => e.target.style.backgroundColor = "#2563eb"}
-          onMouseLeave={(e) => e.target.style.backgroundColor = "#3b82f6"}
+          className="add-category-btn"
         >
-          + Add Category
+          <span className="add-category-btn-icon">+</span>
+          Add Category
         </button>
       </div>
 
       {/* Categories Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "20px" }}>
-        {categories.map((category) => (
-          <CategoryCard
-            key={category.id}
-            category={category}
-            onEdit={() => handleEditCategory(category)}
-            onDelete={() => confirmDeleteCategory(category)}
-            onSelect={() => onCategorySelect(category.id)}
-          />
-        ))}
-      </div>
-
-      {categories.length === 0 && (
-        <div style={{ padding: "40px", textAlign: "center", color: "#6b7280" }}>
-          <div style={{ fontSize: "48px", marginBottom: "16px" }}>🧪</div>
-          <h3 style={{ margin: "0 0 8px 0", color: "#374151" }}>No categories found</h3>
-          <p style={{ margin: 0 }}>Create your first equipment category to get started.</p>
+      {categories.length > 0 ? (
+        <div className="categories-grid">
+          {categories.map((category) => (
+            <CategoryCard
+              key={category.id}
+              category={category}
+              onEdit={() => handleEditCategory(category)}
+              onDelete={() => confirmDeleteCategory(category)}
+              onSelect={() => onCategorySelect(category.id)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="categories-empty-state">
+          <div className="empty-state-icon">🧪</div>
+          <h3 className="empty-state-title">No categories found</h3>
+          <p className="empty-state-message">
+            Create your first equipment category to get started.
+          </p>
         </div>
       )}
 
@@ -222,82 +194,32 @@ export default function CategoriesTab({ categories, onCategorySelect, onCategori
 // Category Card Component
 function CategoryCard({ category, onEdit, onDelete, onSelect }) {
   return (
-    <div
-      style={{
-        padding: "20px",
-        backgroundColor: "#fff",
-        borderRadius: "12px",
-        border: "2px solid #e5e7eb",
-        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-        cursor: "pointer",
-        transition: "all 0.2s"
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = "#3b82f6";
-        e.currentTarget.style.transform = "translateY(-2px)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = "#e5e7eb";
-        e.currentTarget.style.transform = "translateY(0)";
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", marginBottom: "15px" }}>
-        <div
-          style={{
-            width: "40px",
-            height: "40px",
-            backgroundColor: "#3b82f620",
-            borderRadius: "8px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            marginRight: "12px",
-            fontSize: "20px"
-          }}
-        >
-          📦
-        </div>
+    <div className="category-card">
+      <div className="category-card-header">
+        <div className="category-icon">📦</div>
         <div>
-          <h3 style={{ margin: "0 0 4px 0", fontSize: "18px", fontWeight: "600" }}>
-            {category.title}
-          </h3>
+          <h3 className="category-card-title">{category.title}</h3>
         </div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
-        <div>
-          <div style={{ fontSize: "24px", fontWeight: "bold", color: "#1f2937" }}>
-            {category.totalCount || 0}
-          </div>
-          <div style={{ fontSize: "12px", color: "#6b7280" }}>Total Equipment</div>
+      <div className="category-stats">
+        <div className="stat-item">
+          <div className="stat-value">{category.totalCount || 0}</div>
+          <div className="stat-label">Total Equipment</div>
         </div>
-        <div>
-          <div style={{ fontSize: "18px", fontWeight: "600", color: "#10b981" }}>
-            {category.availableCount || 0}
-          </div>
-          <div style={{ fontSize: "12px", color: "#6b7280" }}>Available</div>
+        <div className="stat-item">
+          <div className="stat-value available">{category.availableCount || 0}</div>
+          <div className="stat-label">Available</div>
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: "8px" }}>
+      <div className="category-actions">
         <button
           onClick={(e) => {
             e.stopPropagation();
             onSelect();
           }}
-          style={{
-            flex: 1,
-            padding: "8px 16px",
-            backgroundColor: "#f3f4f6",
-            color: "#374151",
-            border: "1px solid #d1d5db",
-            borderRadius: "4px",
-            cursor: "pointer",
-            fontSize: "12px",
-            transition: "background-color 0.2s"
-          }}
-          onMouseEnter={(e) => e.target.style.backgroundColor = "#e5e7eb"}
-          onMouseLeave={(e) => e.target.style.backgroundColor = "#f3f4f6"}
+          className="category-btn category-btn-primary"
         >
           View Equipment
         </button>
@@ -306,18 +228,7 @@ function CategoryCard({ category, onEdit, onDelete, onSelect }) {
             e.stopPropagation();
             onEdit();
           }}
-          style={{
-            padding: "8px 12px",
-            backgroundColor: "#f3f4f6",
-            color: "#374151",
-            border: "1px solid #d1d5db",
-            borderRadius: "4px",
-            cursor: "pointer",
-            fontSize: "12px",
-            transition: "background-color 0.2s"
-          }}
-          onMouseEnter={(e) => e.target.style.backgroundColor = "#e5e7eb"}
-          onMouseLeave={(e) => e.target.style.backgroundColor = "#f3f4f6"}
+          className="category-btn category-btn-secondary"
         >
           Edit
         </button>
@@ -326,18 +237,7 @@ function CategoryCard({ category, onEdit, onDelete, onSelect }) {
             e.stopPropagation();
             onDelete();
           }}
-          style={{
-            padding: "8px 12px",
-            backgroundColor: "#fee2e2",
-            color: "#dc2626",
-            border: "1px solid #fecaca",
-            borderRadius: "4px",
-            cursor: "pointer",
-            fontSize: "12px",
-            transition: "background-color 0.2s"
-          }}
-          onMouseEnter={(e) => e.target.style.backgroundColor = "#fecaca"}
-          onMouseLeave={(e) => e.target.style.backgroundColor = "#fee2e2"}
+          className="category-btn category-btn-danger"
         >
           Delete
         </button>

@@ -14,7 +14,7 @@
 }
 
 .dashboard-inner {
-  width:1600px;
+  width:1800px;
   margin: 0;
   padding: 40px 20px;
   min-height: calc(100vh - 80px);
@@ -22,7 +22,7 @@
 
 /* Specific styling for non-equipment pages to maintain centering */
 .dashboard-inner:not(:has(.equipment-page)) {
-  max-width: 1200px;
+  max-width: 1500px;
   margin: 0 auto;
 }
 
@@ -460,4 +460,276 @@
 
 .items-center {
   align-items: center;
+}
+
+/* Add these styles to your existing Dashboard.css file */
+
+/* Announcements Section */
+.announcements-section {
+  margin-top: 50px;
+}
+
+.section-header-with-button {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 30px;
+  gap: 20px;
+}
+
+.section-header-with-button .section-header {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.section-header-with-button .section-header h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 8px 0;
+}
+
+.btn-icon {
+  margin-right: 8px;
+  font-size: 16px;
+}
+
+/* Announcements Grid */
+.announcements-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+}
+
+/* Announcement Cards */
+.announcement-card {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.announcement-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.announcement-card.priority-high {
+  border-left: 4px solid #dc2626;
+}
+
+.announcement-card.priority-medium {
+  border-left: 4px solid #f59e0b;
+}
+
+.announcement-card.priority-low {
+  border-left: 4px solid #10b981;
+}
+
+/* Announcement Header */
+.announcement-header {
+  padding: 20px 20px 0 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 15px;
+}
+
+.announcement-title-section {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.announcement-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.priority-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.priority-badge.high {
+  background-color: #fef2f2;
+  color: #dc2626;
+}
+
+.priority-badge.medium {
+  background-color: #fffbeb;
+  color: #f59e0b;
+}
+
+.priority-badge.low {
+  background-color: #ecfdf5;
+  color: #10b981;
+}
+
+.announcement-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.action-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  background: #f3f4f6;
+}
+
+.action-btn:hover {
+  transform: scale(1.1);
+}
+
+.edit-btn:hover {
+  background-color: #dbeafe;
+}
+
+.delete-btn:hover {
+  background-color: #fee2e2;
+}
+
+/* Announcement Content */
+.announcement-content {
+  padding: 15px 20px;
+}
+
+.announcement-content p {
+  margin: 0;
+  color: #374151;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+/* Announcement Footer */
+.announcement-footer {
+  padding: 0 20px 20px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.announcement-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.announcement-author,
+.announcement-date {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.announcement-author {
+  font-weight: 500;
+}
+
+.announcement-category {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 12px;
+  background-color: #f3f4f6;
+  color: #374151;
+  border-radius: 16px;
+  white-space: nowrap;
+}
+
+/* Empty Announcements State */
+.empty-announcements {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 60px 20px;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 2px dashed #d1d5db;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.6;
+}
+
+.empty-announcements h3 {
+  color: #374151;
+  margin: 0 0 8px 0;
+  font-size: 18px;
+}
+
+.empty-announcements p {
+  color: #6b7280;
+  margin: 0;
+}
+
+/* Responsive Design for Announcements */
+@media (max-width: 768px) {
+  .section-header-with-button {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .announcements-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .announcement-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 15px;
+  }
+  
+  .announcement-title-section {
+    justify-content: space-between;
+  }
+  
+  .announcement-actions {
+    align-self: flex-end;
+  }
+  
+  .announcement-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .announcements-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .announcement-card {
+    margin: 0 -12px;
+    border-radius: 8px;
+  }
+  
+  .announcement-header,
+  .announcement-content,
+  .announcement-footer {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
 }
