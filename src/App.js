@@ -9,7 +9,14 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Login />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route 
+          path="/dashboard" 
+          element={
+            <div className="dashboard-container">
+              <Dashboard />
+            </div>
+          } 
+        />
       </Routes>
     </Router>
   );

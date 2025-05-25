@@ -4,6 +4,7 @@ import { ref, push, update, remove } from "firebase/database";
 import { database } from "../../firebase";
 import EquipmentModal from "./EquipmentModal";
 import EquipmentTable from "./EquipmentTable";
+import "./Equipment_page.css";
 
 export default function EquipmentsTab({ 
   categories, 
@@ -103,22 +104,16 @@ export default function EquipmentsTab({
   };
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+    <div className="equipment-tab">
+      <div className="equipment-header">
         <div>
           <h2>Individual Equipment</h2>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "8px" }}>
-            <label style={{ fontSize: "14px", fontWeight: "500" }}>Category:</label>
+          <div className="category-selector">
+            <label>Category:</label>
             <select
               value={selectedCategory}
               onChange={(e) => onCategoryChange(e.target.value)}
-              style={{
-                padding: "6px 12px",
-                border: "1px solid #d1d5db",
-                borderRadius: "4px",
-                fontSize: "14px",
-                minWidth: "200px"
-              }}
+              className="category-select"
             >
               <option value="">Select Category</option>
               {categories.map((cat) => (
@@ -137,27 +132,7 @@ export default function EquipmentsTab({
             }
             setShowAddEquipmentForm(true);
           }}
-          style={{
-            padding: "10px 20px",
-            backgroundColor: selectedCategory ? "#10b981" : "#9ca3af",
-            color: "#fff",
-            border: "none",
-            borderRadius: "6px",
-            cursor: selectedCategory ? "pointer" : "not-allowed",
-            fontSize: "14px",
-            fontWeight: "500",
-            transition: "background-color 0.2s"
-          }}
-          onMouseEnter={(e) => {
-            if (selectedCategory) {
-              e.target.style.backgroundColor = "#059669";
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (selectedCategory) {
-              e.target.style.backgroundColor = "#10b981";
-            }
-          }}
+          className={`add-equipment-btn ${selectedCategory ? 'enabled' : 'disabled'}`}
         >
           + Add Equipment
         </button>
@@ -165,16 +140,16 @@ export default function EquipmentsTab({
 
       {/* Equipment Content */}
       {!selectedCategory ? (
-        <div style={{ padding: "40px", textAlign: "center", color: "#6b7280" }}>
-          <div style={{ fontSize: "48px", marginBottom: "16px" }}>🔬</div>
-          <h3 style={{ margin: "0 0 8px 0", color: "#374151" }}>Select a Category</h3>
-          <p style={{ margin: 0 }}>Choose a category from the dropdown above to view and manage equipment.</p>
+        <div className="empty-state">
+          <div className="empty-state-icon">🔬</div>
+          <h3>Select a Category</h3>
+          <p>Choose a category from the dropdown above to view and manage equipment.</p>
         </div>
       ) : equipments.length === 0 ? (
-        <div style={{ padding: "40px", textAlign: "center", color: "#6b7280" }}>
-          <div style={{ fontSize: "48px", marginBottom: "16px" }}>📋</div>
-          <h3 style={{ margin: "0 0 8px 0", color: "#374151" }}>No equipment found</h3>
-          <p style={{ margin: 0 }}>Add your first equipment to this category.</p>
+        <div className="empty-state">
+          <div className="empty-state-icon">📋</div>
+          <h3>No equipment found</h3>
+          <p>Add your first equipment to this category.</p>
         </div>
       ) : (
         <EquipmentTable 

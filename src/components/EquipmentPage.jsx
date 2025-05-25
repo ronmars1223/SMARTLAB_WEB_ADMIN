@@ -4,6 +4,7 @@ import { ref, onValue } from "firebase/database";
 import { database } from "../firebase";
 import CategoriesTab from "./equipment/CategoriesTab";
 import EquipmentsTab from "./equipment/EquipmentsTab";
+import "../CSS/Equipment.css";
 
 export default function EquipmentPage() {
   const [categories, setCategories] = useState([]);
@@ -78,79 +79,56 @@ export default function EquipmentPage() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "400px" }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: "24px", marginBottom: "16px" }}>🔄</div>
-          <div>Loading laboratory equipment...</div>
+      <div className="equipment-page">
+        <div className="loading-container">
+          <div className="loading-content">
+            <div className="loading-icon">🔄</div>
+            <div className="loading-text">Loading laboratory equipment...</div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div>
-      {/* Header */}
-      <div style={{ marginBottom: "30px" }}>
-        <h1 style={{ margin: "0 0 10px 0" }}>Laboratory Equipment Management</h1>
-        <p style={{ margin: 0, color: "#6b7280" }}>
-          Manage equipment categories and individual laboratory equipment.
-        </p>
-      </div>
-
+    <div className="equipment-page">
       {/* Navigation Tabs */}
-      <div style={{ display: "flex", marginBottom: "30px", borderBottom: "2px solid #e5e7eb" }}>
+      <div className="equipment-nav-tabs">
         <button
           onClick={() => setActiveTab("categories")}
-          style={{
-            padding: "12px 24px",
-            backgroundColor: activeTab === "categories" ? "#3b82f6" : "transparent",
-            color: activeTab === "categories" ? "#fff" : "#6b7280",
-            border: "none",
-            borderBottom: activeTab === "categories" ? "2px solid #3b82f6" : "2px solid transparent",
-            cursor: "pointer",
-            fontSize: "14px",
-            fontWeight: "500",
-            transition: "all 0.2s"
-          }}
+          className={`equipment-nav-tab ${activeTab === "categories" ? "active" : ""}`}
         >
-          Equipment Categories ({categories.length})
+          Equipment Categories
+          <span className="tab-count">({categories.length})</span>
         </button>
         <button
           onClick={() => setActiveTab("equipments")}
-          style={{
-            padding: "12px 24px",
-            backgroundColor: activeTab === "equipments" ? "#3b82f6" : "transparent",
-            color: activeTab === "equipments" ? "#fff" : "#6b7280",
-            border: "none",
-            borderBottom: activeTab === "equipments" ? "2px solid #3b82f6" : "2px solid transparent",
-            cursor: "pointer",
-            fontSize: "14px",
-            fontWeight: "500",
-            transition: "all 0.2s"
-          }}
+          className={`equipment-nav-tab ${activeTab === "equipments" ? "active" : ""}`}
         >
           Individual Equipment
         </button>
       </div>
 
       {/* Tab Content */}
-      {activeTab === "categories" && (
-        <CategoriesTab 
-          categories={categories}
-          onCategorySelect={handleCategorySelect}
-          onCategoriesUpdate={fetchCategories}
-        />
-      )}
+      <div className="equipment-tab-content">
+        {activeTab === "categories" && (
+          <CategoriesTab 
+            categories={categories}
+            onCategorySelect={handleCategorySelect}
+            onCategoriesUpdate={fetchCategories}
+          />
+        )}
 
-      {activeTab === "equipments" && (
-        <EquipmentsTab 
-          categories={categories}
-          equipments={equipments}
-          selectedCategory={selectedCategory}
-          onCategoryChange={setSelectedCategory}
-          onEquipmentsUpdate={() => fetchEquipments(selectedCategory)}
-        />
-      )}
+        {activeTab === "equipments" && (
+          <EquipmentsTab 
+            categories={categories}
+            equipments={equipments}
+            selectedCategory={selectedCategory}
+            onCategoryChange={setSelectedCategory}
+            onEquipmentsUpdate={() => fetchEquipments(selectedCategory)}
+          />
+        )}
+      </div>
     </div>
   );
 }

@@ -1,37 +1,57 @@
-/* src/components/Dashboard.css */
-
-/* Main layout */
+/* Dashboard Main Layout */
 .dashboard-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
-  box-sizing: border-box;
+  display: flex;
+  min-height: 100vh;
+  background-color: #f8fafc;
 }
+
 .dashboard-main {
   margin-left: 250px;
-  padding: 40px;
+  flex: 1;
   min-height: 100vh;
-  background-color: #ffffff;
+  background-color: #fff;
   transition: margin-left 0.3s ease;
 }
 
-/* Dashboard welcome section */
-.dashboard-welcome h1 {
-  margin-bottom: 10px;
+.dashboard-inner {
+  width:1600px;
+  margin: 0;
+  padding: 40px 20px;
+  min-height: calc(100vh - 80px);
 }
 
-.dashboard-inner {
+/* Specific styling for non-equipment pages to maintain centering */
+.dashboard-inner:not(:has(.equipment-page)) {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 20px;
 }
 
+/* Alternative approach using CSS container queries (fallback) */
+.dashboard-content-centered {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Dashboard Overview */
+.dashboard-welcome {
+  margin-bottom: 40px;
+}
+
+.dashboard-welcome h1 {
+  font-size: 32px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 10px 0;
+}
 
 .dashboard-welcome p {
-  margin-bottom: 30px;
+  font-size: 16px;
+  color: #6b7280;
+  margin: 0;
 }
 
-.dashboard-stats {
+/* Stats Cards Grid */
+.stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 20px;
@@ -39,155 +59,140 @@
 }
 
 .stat-card {
-  padding: 20px;
+  padding: 24px;
   background-color: #f8fafc;
-  border-radius: 8px;
+  border-radius: 12px;
   border: 1px solid #e2e8f0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .stat-card h3 {
-  margin: 0 0 10px 0;
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 600;
 }
 
-.stat-card.equipment h3 {
+.stat-card.blue h3 {
   color: #1e40af;
 }
 
-.stat-card.users h3 {
+.stat-card.green h3 {
   color: #059669;
 }
 
-.stat-card.maintenance h3 {
+.stat-card.red h3 {
   color: #dc2626;
 }
 
-.stat-value {
-  font-size: 24px;
-  font-weight: bold;
+.stat-card p {
+  font-size: 28px;
+  font-weight: 700;
   margin: 0;
   color: #1f2937;
 }
 
-/* Equipment management section */
-.equipment-header {
+/* Section Headers */
+.section-header {
   margin-bottom: 30px;
 }
 
-.equipment-title {
-  margin: 0 0 10px 0;
+.section-header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 8px 0;
 }
 
-.equipment-subtitle {
-  margin: 0;
+.section-header p {
+  font-size: 16px;
   color: #6b7280;
+  margin: 0;
 }
 
-.equipment-actions {
+/* Button Styles */
+.btn-group {
   display: flex;
-  gap: 10px;
-  margin-bottom: 30px;
+  gap: 12px;
+  margin-top: 20px;
+  flex-wrap: wrap;
 }
 
-.equipment-btn {
-  padding: 10px 20px;
+.btn {
+  padding: 12px 24px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.equipment-btn.add {
+.btn-primary {
+  background-color: #3b82f6;
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background-color: #2563eb;
+  transform: translateY(-1px);
+}
+
+.btn-success {
   background-color: #10b981;
   color: #fff;
 }
 
-.equipment-btn.add:hover {
+.btn-success:hover {
   background-color: #059669;
+  transform: translateY(-1px);
 }
 
-.equipment-btn.export {
-  background-color: #6b7280;
-  color: #fff;
-}
-
-.equipment-btn.export:hover {
-  background-color: #4b5563;
-}
-
-/* Recent equipment section */
-.recent-equipment {
-  padding: 20px;
-  background-color: #f9fafb;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-}
-
-.recent-equipment h3 {
-  margin-top: 0;
-  margin-bottom: 15px;
-}
-
-.equipment-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.equipment-item {
-  padding: 10px 0;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.equipment-item:last-child {
-  border-bottom: none;
-}
-
-/* User management section */
-.user-actions {
-  margin-top: 20px;
-  margin-bottom: 30px;
-}
-
-.user-btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  margin-right: 10px;
-}
-
-.user-btn.add {
-  background-color: #10b981;
-  color: #fff;
-}
-
-.user-btn.add:hover {
-  background-color: #059669;
-}
-
-.user-btn.roles {
+.btn-warning {
   background-color: #f59e0b;
   color: #fff;
 }
 
-.user-btn.roles:hover {
+.btn-warning:hover {
   background-color: #d97706;
+  transform: translateY(-1px);
 }
 
-.user-list-container {
+.btn-secondary {
+  background-color: #6b7280;
+  color: #fff;
+}
+
+.btn-secondary:hover {
+  background-color: #4b5563;
+  transform: translateY(-1px);
+}
+
+/* Content Cards */
+.content-card {
   margin-top: 30px;
-  padding: 20px;
+  padding: 24px;
   background-color: #f9fafb;
-  border-radius: 8px;
+  border-radius: 12px;
   border: 1px solid #e5e7eb;
 }
 
-.user-list-container h3 {
-  margin-top: 0;
-  margin-bottom: 15px;
+.content-card h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 20px 0;
 }
 
+/* User List */
 .user-list {
   list-style: none;
   padding: 0;
@@ -195,25 +200,43 @@
 }
 
 .user-item {
-  padding: 10px 0;
+  padding: 16px 0;
   border-bottom: 1px solid #e5e7eb;
   display: flex;
   justify-content: space-between;
+  align-items: center;
 }
 
 .user-item:last-child {
   border-bottom: none;
 }
 
-.user-status.active {
-  color: #10b981;
+.user-info {
+  font-size: 14px;
+  color: #374151;
+  font-weight: 500;
 }
 
-.user-status.pending {
-  color: #f59e0b;
+.user-status {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-/* Profile settings section */
+.status-active {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.status-pending {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+/* Profile Section */
 .profile-grid {
   margin-top: 30px;
   display: grid;
@@ -222,84 +245,219 @@
 }
 
 .profile-card {
-  padding: 20px;
+  padding: 24px;
   background-color: #f9fafb;
-  border-radius: 8px;
+  border-radius: 12px;
   border: 1px solid #e5e7eb;
 }
 
 .profile-card h3 {
-  margin-top: 0;
-  margin-bottom: 15px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 20px 0;
 }
 
+/* Profile Picture */
 .profile-picture {
-  width: 100px;
-  height: 100px;
+  width: 120px;
+  height: 120px;
   background-color: #d1d5db;
   border-radius: 50%;
   margin: 20px 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 36px;
+  font-size: 48px;
+  transition: transform 0.2s ease;
 }
 
-.photo-btn {
-  padding: 8px 16px;
-  background-color: #6b7280;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
+.profile-picture:hover {
+  transform: scale(1.05);
 }
 
-.photo-btn:hover {
-  background-color: #4b5563;
-}
-
+/* Form Styles */
 .form-group {
-  margin-bottom: 15px;
+  margin-bottom: 20px;
 }
 
-.form-group label {
+.form-label {
   display: block;
-  margin-bottom: 5px;
-  font-weight: 500;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
 }
 
-.form-group input,
-.form-group select {
+.form-input,
+.form-select {
   width: 100%;
-  padding: 8px 12px;
+  padding: 12px 16px;
   border: 1px solid #d1d5db;
-  border-radius: 4px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #374151;
+  background-color: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
 }
 
-.form-group input:focus,
-.form-group select:focus {
+.form-input:focus,
+.form-select:focus {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.save-btn {
-  padding: 10px 20px;
-  background-color: #3b82f6;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  margin-top: 5px;
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .dashboard-main {
+    margin-left: 200px;
+  }
+  
+  .profile-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
 }
 
-.save-btn:hover {
-  background-color: #2563eb;
+@media (max-width: 768px) {
+  .dashboard-main {
+    margin-left: 0;
+    width: 100%;
+  }
+  
+  .dashboard-inner {
+    padding: 20px 16px;
+  }
+  
+  .dashboard-inner:not(:has(.equipment-page)) {
+    max-width: 100%;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .btn-group {
+    flex-direction: column;
+  }
+  
+  .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .user-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .profile-picture {
+    width: 100px;
+    height: 100px;
+    font-size: 40px;
+  }
+  
+  .section-header h1 {
+    font-size: 24px;
+  }
+  
+  .dashboard-welcome h1 {
+    font-size: 28px;
+  }
 }
 
-/* Section not found */
-.section-not-found {
-  text-align: center;
+@media (max-width: 480px) {
+  .dashboard-inner {
+    padding: 16px 12px;
+  }
+  
+  .stat-card {
+    padding: 20px;
+  }
+  
+  .content-card {
+    padding: 20px;
+  }
+  
+  .profile-card {
+    padding: 20px;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .section-header h1 {
+    font-size: 22px;
+  }
+  
+  .dashboard-welcome h1 {
+    font-size: 24px;
+  }
+}
+
+/* Animation for smooth transitions */
+.dashboard-inner > * {
+  animation: fadeInUp 0.4s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Loading states */
+.loading-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
   color: #6b7280;
-  padding: 40px;
+}
+
+/* Empty states */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6b7280;
+}
+
+.empty-state h3 {
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+/* Utility classes */
+.text-center {
+  text-align: center;
+}
+
+.mt-4 {
+  margin-top: 1rem;
+}
+
+.mb-4 {
+  margin-bottom: 1rem;
+}
+
+.flex-wrap {
+  flex-wrap: wrap;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.items-center {
+  align-items: center;
 }
