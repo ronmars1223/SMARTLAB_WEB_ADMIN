@@ -6,7 +6,6 @@ export default function AnnouncementModal({ announcement, onSave, onClose }) {
   const [formData, setFormData] = useState({
     title: "",
     content: "",
-    priority: "medium",
     category: "",
     author: ""
   });
@@ -18,7 +17,6 @@ export default function AnnouncementModal({ announcement, onSave, onClose }) {
       setFormData({
         title: announcement.title || "",
         content: announcement.content || "",
-        priority: announcement.priority || "medium",
         category: announcement.category || "",
         author: announcement.author || ""
       });
@@ -103,24 +101,6 @@ export default function AnnouncementModal({ announcement, onSave, onClose }) {
 
             <div className="form-group">
               <label className="form-label">
-                Priority <span className="required">*</span>
-              </label>
-              <select
-                name="priority"
-                value={formData.priority}
-                onChange={handleInputChange}
-                className="form-select"
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">
                 Author <span className="required">*</span>
               </label>
               <input
@@ -133,7 +113,9 @@ export default function AnnouncementModal({ announcement, onSave, onClose }) {
               />
               {errors.author && <span className="error-message">{errors.author}</span>}
             </div>
+          </div>
 
+          <div className="form-row">
             <div className="form-group">
               <label className="form-label">Category</label>
               <select
