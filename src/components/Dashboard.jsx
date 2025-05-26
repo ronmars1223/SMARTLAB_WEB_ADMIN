@@ -5,6 +5,8 @@ import { database } from "../firebase";
 import Sidebar from "./Sidebar";
 import EquipmentPage from "./EquipmentPage";
 import UserManagement from "./UserManagement";
+import RequestFormsPage from "./RequestFormsPage";
+import HistoryPage from "./HistoryPage";
 import AnnouncementModal from "./AnnouncementModal";
 import "../CSS/Dashboard.css";
 
@@ -13,6 +15,18 @@ export default function Dashboard() {
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
   const [editingAnnouncement, setEditingAnnouncement] = useState(null);
+  const [dashboardStats, setDashboardStats] = useState({
+    totalEquipment: 0,
+    totalUsers: 0,
+    pendingRequests: 0,
+    borrowedItems: 0,
+    itemsInStock: 0,
+    needMaintenance: 0,
+    overdueItems: 0,
+    borrowedByAdviser: 0,
+    borrowedByStudents: 0
+  });
+  const [borrowingData, setBorrowingData] = useState([]);
 
   // Load announcements from Firebase
   useEffect(() => {
@@ -34,6 +48,80 @@ export default function Dashboard() {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  // Load dashboard analytics data
+  useEffect(() => {
+    // Load borrow requests for statistics
+    const borrowRequestsRef = ref(database, 'borrow_requests');
+    const equipmentRef = ref(database, 'equipment');
+    const usersRef = ref(database, 'users');
+
+    const unsubscribeBorrowRequests = onValue(borrowRequestsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const requests = Object.values(data);
+        
+        // Calculate statistics
+        const pendingCount = requests.filter(req => req.status === 'pending').length;
+        const approvedCount = requests.filter(req => req.status === 'approved').length;
+        const borrowedCount = requests.filter(req => req.status === 'in_progress' || req.status === 'approved').length;
+        
+        // Simulate additional stats (you can replace with real data)
+        const overdueCount = requests.filter(req => {
+          if (req.dateToReturn && req.status === 'approved') {
+            return new Date(req.dateToReturn) < new Date();
+          }
+          return false;
+        }).length;
+
+        // Create borrowing chart data
+        const categoryData = {};
+        requests.forEach(req => {
+          const category = req.categoryName || 'Other';
+          categoryData[category] = (categoryData[category] || 0) + 1;
+        });
+
+        const chartData = Object.entries(categoryData).map(([name, value]) => ({
+          name,
+          value
+        }));
+
+        setBorrowingData(chartData);
+
+        setDashboardStats(prev => ({
+          ...prev,
+          pendingRequests: pendingCount,
+          borrowedItems: borrowedCount,
+          overdueItems: overdueCount,
+          borrowedByAdviser: Math.floor(borrowedCount * 0.3), // Simulate adviser borrows
+          borrowedByStudents: Math.floor(borrowedCount * 0.7) // Simulate student borrows
+        }));
+      }
+    });
+
+    // You can add more listeners for equipment and users data
+    const unsubscribeEquipment = onValue(equipmentRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const equipment = Object.values(data);
+        const totalEquipment = equipment.length;
+        const inStock = equipment.filter(item => item.status === 'available').length;
+        const needMaintenance = equipment.filter(item => item.status === 'maintenance').length;
+
+        setDashboardStats(prev => ({
+          ...prev,
+          totalEquipment,
+          itemsInStock: inStock,
+          needMaintenance
+        }));
+      }
+    });
+
+    return () => {
+      unsubscribeBorrowRequests();
+      unsubscribeEquipment();
+    };
   }, []);
 
   const handleSectionChange = (section) => {
@@ -113,22 +201,145 @@ export default function Dashboard() {
         return (
           <div className="dashboard-content-centered">
             <div className="dashboard-welcome">
-              <h1>Welcome to the Dashboard</h1>
-              <p>You are successfully logged in!</p>
+              <h1>Welcome to SmartLab Dashboard</h1>
+              <p>Monitor and manage your laboratory equipment efficiently</p>
             </div>
             
-            <div className="stats-grid">
-              <div className="stat-card blue">
-                <h3>Total Equipment</h3>
-                <p>45</p>
+            {/* Main Statistics Grid */}
+            <div className="main-stats-grid">
+              <div className="stat-card-large primary">
+                <div className="stat-number">{dashboardStats.borrowedByAdviser}</div>
+                <div className="stat-label">Items Borrowed by Adviser</div>
+                <div className="stat-icon">👨‍🏫</div>
               </div>
-              <div className="stat-card green">
-                <h3>Active Users</h3>
-                <p>23</p>
+              <div className="stat-card-large success">
+                <div className="stat-number">{dashboardStats.borrowedByStudents}</div>
+                <div className="stat-label">Items Borrowed by Students</div>
+                <div className="stat-icon">👨‍🎓</div>
               </div>
-              <div className="stat-card red">
-                <h3>Maintenance Due</h3>
-                <p>8</p>
+              <div className="stat-card-large info">
+                <div className="stat-number">{dashboardStats.borrowedItems}</div>
+                <div className="stat-label">Total Items Borrowed</div>
+                <div className="stat-icon">📦</div>
+              </div>
+            </div>
+
+            {/* Secondary Statistics Grid */}
+            <div className="secondary-stats-grid">
+              <div className="stat-card-small">
+                <div className="stat-number">{dashboardStats.itemsInStock.toLocaleString()}</div>
+                <div className="stat-label">Total Items in Stock</div>
+              </div>
+              <div className="stat-card-small warning">
+                <div className="stat-number">{dashboardStats.needMaintenance}</div>
+                <div className="stat-label">Need Maintenance</div>
+              </div>
+              <div className="stat-card-small danger">
+                <div className="stat-number">{dashboardStats.overdueItems}</div>
+                <div className="stat-label">Overdue Items</div>
+              </div>
+            </div>
+
+            {/* Charts Section */}
+            <div className="charts-section">
+              {/* Top Borrowed Items Chart */}
+              <div className="chart-card">
+                <div className="chart-header">
+                  <h3>Top 5 Borrowed Items</h3>
+                  <p>Most frequently borrowed equipment categories</p>
+                </div>
+                <div className="chart-container">
+                  <div className="bar-chart">
+                    {borrowingData.slice(0, 5).map((item, index) => (
+                      <div key={item.name} className="bar-item">
+                        <div className="bar-label">{item.name}</div>
+                        <div className="bar-container">
+                          <div 
+                            className="bar-fill" 
+                            style={{
+                              width: `${(item.value / Math.max(...borrowingData.map(d => d.value))) * 100}%`,
+                              backgroundColor: `hsl(${200 + index * 30}, 70%, 50%)`
+                            }}
+                          ></div>
+                          <span className="bar-value">{item.value}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Activity Summary */}
+              <div className="activity-card">
+                <div className="activity-header">
+                  <h3>Recent Activity</h3>
+                  <p>Latest system activities</p>
+                </div>
+                <div className="activity-list">
+                  <div className="activity-item">
+                    <div className="activity-icon success">✅</div>
+                    <div className="activity-content">
+                      <div className="activity-title">New equipment added</div>
+                      <div className="activity-time">2 hours ago</div>
+                    </div>
+                  </div>
+                  <div className="activity-item">
+                    <div className="activity-icon info">📋</div>
+                    <div className="activity-content">
+                      <div className="activity-title">Borrow request approved</div>
+                      <div className="activity-time">4 hours ago</div>
+                    </div>
+                  </div>
+                  <div className="activity-item">
+                    <div className="activity-icon warning">⚠️</div>
+                    <div className="activity-content">
+                      <div className="activity-title">Maintenance due reminder</div>
+                      <div className="activity-time">1 day ago</div>
+                    </div>
+                  </div>
+                  <div className="activity-item">
+                    <div className="activity-icon primary">👤</div>
+                    <div className="activity-content">
+                      <div className="activity-title">New user registered</div>
+                      <div className="activity-time">2 days ago</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="quick-actions">
+              <h3>Quick Actions</h3>
+              <div className="action-buttons">
+                <button 
+                  className="action-btn primary"
+                  onClick={() => setActiveSection('equipments')}
+                >
+                  <span className="btn-icon">⚙️</span>
+                  Manage Equipment
+                </button>
+                <button 
+                  className="action-btn success"
+                  onClick={() => setActiveSection('request-forms')}
+                >
+                  <span className="btn-icon">📋</span>
+                  View Requests
+                </button>
+                <button 
+                  className="action-btn info"
+                  onClick={() => setActiveSection('history')}
+                >
+                  <span className="btn-icon">📊</span>
+                  View History
+                </button>
+                <button 
+                  className="action-btn warning"
+                  onClick={() => setActiveSection('users')}
+                >
+                  <span className="btn-icon">👥</span>
+                  Manage Users
+                </button>
               </div>
             </div>
 
@@ -210,6 +421,12 @@ export default function Dashboard() {
       
       case "equipments":
         return <EquipmentPage />;
+      
+      case "request-forms":
+        return <RequestFormsPage />;
+      
+      case "history":
+        return <HistoryPage />;
       
       case "users":
         return <UserManagement />;

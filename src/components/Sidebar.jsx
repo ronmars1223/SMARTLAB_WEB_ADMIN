@@ -10,8 +10,12 @@ export default function Sidebar({ activeSection, onSectionChange }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const handleLogout = async () => {
-    await signOut(auth);
-    navigate("/");
+    try {
+      await signOut(auth);
+      navigate("/");
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
   };
 
   const menuItems = [
@@ -22,8 +26,18 @@ export default function Sidebar({ activeSection, onSectionChange }) {
     },
     {
       id: "equipments",
-      label: "Equipments",
+      label: "Equipments", 
       icon: "⚙️"
+    },
+    {
+      id: "request-forms",
+      label: "Request Forms",
+      icon: "📋"
+    },
+    {
+      id: "history",
+      label: "History",
+      icon: "📊"
     },
     {
       id: "users",
@@ -46,32 +60,41 @@ export default function Sidebar({ activeSection, onSectionChange }) {
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="toggle-button"
-          title={isCollapsed ? "Expand" : "Collapse"}
+          title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {isCollapsed ? "→" : "←"}
         </button>
       </div>
 
-      <nav className="sidebar-nav">
+      <nav className="sidebar-nav" role="navigation">
         {menuItems.map((item) => (
-          <div
+          <button
             key={item.id}
             className={`menu-item ${activeSection === item.id ? 'active' : ''} tooltip`}
             onClick={() => onSectionChange(item.id)}
             data-tooltip={item.label}
+            title={isCollapsed ? item.label : ''}
+            aria-label={item.label}
           >
-            <span className="menu-item-icon">{item.icon}</span>
+            <span className="menu-item-icon" role="img" aria-hidden="true">
+              {item.icon}
+            </span>
             <span className="menu-item-label">{item.label}</span>
-          </div>
+          </button>
         ))}
       </nav>
 
       <button
         onClick={handleLogout}
         className="logout-button"
+        title="Sign out of admin panel"
+        aria-label="Logout"
       >
         <span className="logout-button-text">Logout</span>
-        <span className="logout-button-icon">↪</span>
+        <span className="logout-button-icon" role="img" aria-hidden="true">
+          ↪
+        </span>
       </button>
     </div>
   );

@@ -41,6 +41,7 @@ export default function HistoryPage() {
             adviserName: request.adviserName,
             status: request.status || "pending",
             timestamp: request.requestedAt || request.dateToBeUsed,
+            reviewedBy: "-",
             details: {
               requestId: key,
               originalRequest: request,
@@ -96,7 +97,27 @@ export default function HistoryPage() {
       const matchesStatus = filterStatus === "All" || entry.status === filterStatus;
       
       let matchesDate = true;
-     
+      if (dateRange !== "All") {
+        const entryDate = new Date(entry.timestamp);
+        const now = new Date();
+        
+        switch (dateRange) {
+          case "Today":
+            matchesDate = entryDate.toDateString() === now.toDateString();
+            break;
+          case "This Week":
+            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            matchesDate = entryDate >= weekAgo;
+            break;
+          case "This Month":
+            const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            matchesDate = entryDate >= monthAgo;
+            break;
+          case "This Year":
+            matchesDate = entryDate.getFullYear() === now.getFullYear();
+            break;
+        }
+      }
       
       return matchesSearch && matchesType && matchesStatus && matchesDate;
     })
@@ -138,16 +159,6 @@ export default function HistoryPage() {
     }
   };
 
-  const getActionIcon = (action) => {
-    if (action.includes("Created")) return "✨";
-    if (action.includes("approved")) return "✅";
-    if (action.includes("rejected")) return "❌";
-    if (action.includes("in_progress")) return "🔄";
-    if (action.includes("completed")) return "🎉";
-    if (action.includes("cancelled")) return "🚫";
-    return "📝";
-  };
-
   const handleViewDetails = (entry) => {
     setSelectedEntry(entry);
     setShowDetailsModal(true);
@@ -172,26 +183,6 @@ export default function HistoryPage() {
     return sortOrder === "asc" ? "↑" : "↓";
   };
 
-  const getHistoryStats = () => {
-    const stats = {
-      total: historyData.length,
-      today: historyData.filter(entry => {
-        const entryDate = new Date(entry.timestamp);
-        const today = new Date();
-        return entryDate.toDateString() === today.toDateString();
-      }).length,
-      thisWeek: historyData.filter(entry => {
-        const entryDate = new Date(entry.timestamp);
-        const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-        return entryDate >= weekAgo;
-      }).length,
-      requests: historyData.filter(entry => entry.type === "Request Update").length
-    };
-    return stats;
-  };
-
-  const stats = getHistoryStats();
-
   if (loading) {
     return (
       <div className="history-page">
@@ -207,26 +198,6 @@ export default function HistoryPage() {
 
   return (
     <div className="history-page">
-      {/* Statistics Overview */}
-      <div className="history-stats-grid">
-        <div className="stat-card total">
-          <div className="stat-number">{stats.total}</div>
-          <div className="stat-label">Total Activities</div>
-        </div>
-        <div className="stat-card today">
-          <div className="stat-number">{stats.today}</div>
-          <div className="stat-label">Today</div>
-        </div>
-        <div className="stat-card week">
-          <div className="stat-number">{stats.thisWeek}</div>
-          <div className="stat-label">This Week</div>
-        </div>
-        <div className="stat-card requests">
-          <div className="stat-number">{stats.requests}</div>
-          <div className="stat-label">Request Updates</div>
-        </div>
-      </div>
-
       {/* Filters and Search */}
       <div className="history-controls">
         <div className="search-section">
@@ -300,7 +271,7 @@ export default function HistoryPage() {
                   </th>
                   <th>Reviewed By</th>
                   <th onClick={() => handleSort("timestamp")} className="sortable">
-                    Timestamp {getSortIcon("timestamp")}
+                    Date & Time {getSortIcon("timestamp")}
                   </th>
                   <th>Actions</th>
                 </tr>
@@ -308,44 +279,24 @@ export default function HistoryPage() {
               <tbody>
                 {filteredHistory.map((entry) => (
                   <tr key={entry.id}>
-                    <td className="action-cell">
-                      <div className="action-info">
-                        <span className="action-icon">{getActionIcon(entry.action)}</span>
-                        <span className="action-text">{entry.action}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="type-badge">{entry.type}</span>
-                    </td>
-                    <td className="item-cell">
-                      <span className="item-name">{entry.itemName || "N/A"}</span>
-                    </td>
-                    <td className="adviser-cell">
-                      <div className="adviser-info">
-                        <div className="adviser-avatar">
-                          {entry.adviserName?.charAt(0)?.toUpperCase() || "?"}
-                        </div>
-                        <span className="adviser-name">{entry.adviserName || "Unknown"}</span>
-                      </div>
-                    </td>
+                    <td className="action-cell">{entry.action}</td>
+                    <td className="type-cell">{entry.type}</td>
+                    <td className="item-cell">{entry.itemName || "N/A"}</td>
+                    <td className="adviser-cell">{entry.adviserName || "Unknown"}</td>
                     <td>
                       <span className={`status-badge ${getStatusBadgeClass(entry.status)}`}>
                         {entry.status}
                       </span>
                     </td>
-                    <td className="reviewer-cell">
-                      {entry.reviewedBy || "-"}
-                    </td>
-                    <td className="date-cell">
-                      {formatDate(entry.timestamp)}
-                    </td>
+                    <td className="reviewer-cell">{entry.reviewedBy}</td>
+                    <td className="date-cell">{formatDate(entry.timestamp)}</td>
                     <td>
                       <button
                         className="action-btn view-btn"
                         onClick={() => handleViewDetails(entry)}
                         title="View Details"
                       >
-                        👁️ View
+                        👁️ View Details
                       </button>
                     </td>
                   </tr>
@@ -372,59 +323,65 @@ export default function HistoryPage() {
         <div className="modal-overlay" onClick={closeDetailsModal}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Activity Details</h2>
+              <h2>Complete Activity Details</h2>
               <button className="modal-close" onClick={closeDetailsModal}>×</button>
             </div>
             
             <div className="modal-body">
               <div className="details-grid">
                 <div className="detail-section">
-                  <h3>Activity Information</h3>
+                  <h3>📋 Activity Information</h3>
                   <div className="detail-item">
-                    <label>Action:</label>
+                    <label>Action Performed:</label>
                     <span>{selectedEntry.action}</span>
                   </div>
                   <div className="detail-item">
-                    <label>Type:</label>
+                    <label>Activity Type:</label>
                     <span>{selectedEntry.type}</span>
                   </div>
                   <div className="detail-item">
-                    <label>Timestamp:</label>
+                    <label>Date & Time:</label>
                     <span>{formatDate(selectedEntry.timestamp)}</span>
                   </div>
                   <div className="detail-item">
-                    <label>Status:</label>
+                    <label>Current Status:</label>
                     <span className={`status-badge ${getStatusBadgeClass(selectedEntry.status)}`}>
                       {selectedEntry.status}
                     </span>
                   </div>
+                  <div className="detail-item">
+                    <label>Reviewed/Modified By:</label>
+                    <span>{selectedEntry.reviewedBy}</span>
+                  </div>
                 </div>
 
                 <div className="detail-section">
-                  <h3>Related Information</h3>
+                  <h3>🔍 Request Information</h3>
                   <div className="detail-item">
                     <label>Item Name:</label>
                     <span>{selectedEntry.itemName || "N/A"}</span>
                   </div>
                   <div className="detail-item">
-                    <label>Adviser:</label>
+                    <label>Adviser Name:</label>
                     <span>{selectedEntry.adviserName || "N/A"}</span>
                   </div>
-                  {selectedEntry.reviewedBy && (
-                    <div className="detail-item">
-                      <label>Reviewed By:</label>
-                      <span>{selectedEntry.reviewedBy}</span>
-                    </div>
-                  )}
                   <div className="detail-item">
                     <label>Request ID:</label>
                     <span>{selectedEntry.details?.requestId || "N/A"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Activity ID:</label>
+                    <span>{selectedEntry.id}</span>
                   </div>
                 </div>
 
                 {selectedEntry.details?.originalRequest && (
                   <div className="detail-section">
-                    <h3>Original Request Data</h3>
+                    <h3>📄 Complete Request Details</h3>
+                    <div className="detail-item">
+                      <label>Item Number:</label>
+                      <span>{selectedEntry.details.originalRequest.itemNo || "N/A"}</span>
+                    </div>
                     <div className="detail-item">
                       <label>Category:</label>
                       <span>{selectedEntry.details.originalRequest.categoryName || "N/A"}</span>
@@ -434,13 +391,47 @@ export default function HistoryPage() {
                       <span>{selectedEntry.details.originalRequest.laboratory || "N/A"}</span>
                     </div>
                     <div className="detail-item">
-                      <label>Quantity:</label>
+                      <label>Quantity Requested:</label>
                       <span>{selectedEntry.details.originalRequest.quantity || "N/A"}</span>
                     </div>
                     <div className="detail-item">
                       <label>Date to be Used:</label>
                       <span>{selectedEntry.details.originalRequest.dateToBeUsed ? formatDate(selectedEntry.details.originalRequest.dateToBeUsed) : "N/A"}</span>
                     </div>
+                    <div className="detail-item">
+                      <label>Date to Return:</label>
+                      <span>{selectedEntry.details.originalRequest.dateToReturn ? formatDate(selectedEntry.details.originalRequest.dateToReturn) : "N/A"}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>User Email:</label>
+                      <span>{selectedEntry.details.originalRequest.userEmail || "N/A"}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>User ID:</label>
+                      <span>{selectedEntry.details.originalRequest.userId || "N/A"}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>Adviser ID:</label>
+                      <span>{selectedEntry.details.originalRequest.adviserId || "N/A"}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>Category ID:</label>
+                      <span>{selectedEntry.details.originalRequest.categoryId || "N/A"}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>Item ID:</label>
+                      <span>{selectedEntry.details.originalRequest.itemId || "N/A"}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>Originally Requested:</label>
+                      <span>{selectedEntry.details.originalRequest.requestedAt ? formatDate(selectedEntry.details.originalRequest.requestedAt) : "N/A"}</span>
+                    </div>
+                    {selectedEntry.details.originalRequest.updatedAt && (
+                      <div className="detail-item">
+                        <label>Last Updated:</label>
+                        <span>{formatDate(selectedEntry.details.originalRequest.updatedAt)}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

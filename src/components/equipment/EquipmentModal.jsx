@@ -1,6 +1,6 @@
 // src/components/equipment/EquipmentModal.js
 import React, { useState, useEffect } from "react";
-import "./Equipment_page.css";
+import "./EquipmentModal.css";
 
 export default function EquipmentModal({ equipment, onSubmit, onClose }) {
   const [formData, setFormData] = useState({
