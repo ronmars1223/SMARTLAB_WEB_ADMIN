@@ -190,6 +190,7 @@ export default function HistoryPage() {
     return stats;
   };
 
+  // eslint-disable-next-line no-unused-vars
   const stats = getHistoryStats();
 
   if (loading) {
@@ -208,24 +209,7 @@ export default function HistoryPage() {
   return (
     <div className="history-page">
       {/* Statistics Overview */}
-      <div className="history-stats-grid">
-        <div className="stat-card total">
-          <div className="stat-number">{stats.total}</div>
-          <div className="stat-label">Total Activities</div>
-        </div>
-        <div className="stat-card today">
-          <div className="stat-number">{stats.today}</div>
-          <div className="stat-label">Today</div>
-        </div>
-        <div className="stat-card week">
-          <div className="stat-number">{stats.thisWeek}</div>
-          <div className="stat-label">This Week</div>
-        </div>
-        <div className="stat-card requests">
-          <div className="stat-number">{stats.requests}</div>
-          <div className="stat-label">Request Updates</div>
-        </div>
-      </div>
+    
 
       {/* Filters and Search */}
       <div className="history-controls">
