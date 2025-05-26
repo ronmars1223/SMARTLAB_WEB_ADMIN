@@ -55,7 +55,6 @@ export default function Dashboard() {
     // Load borrow requests for statistics
     const borrowRequestsRef = ref(database, 'borrow_requests');
     const equipmentRef = ref(database, 'equipment');
-    const usersRef = ref(database, 'users');
 
     const unsubscribeBorrowRequests = onValue(borrowRequestsRef, (snapshot) => {
       const data = snapshot.val();
@@ -64,7 +63,6 @@ export default function Dashboard() {
         
         // Calculate statistics
         const pendingCount = requests.filter(req => req.status === 'pending').length;
-        const approvedCount = requests.filter(req => req.status === 'approved').length;
         const borrowedCount = requests.filter(req => req.status === 'in_progress' || req.status === 'approved').length;
         
         // Simulate additional stats (you can replace with real data)

@@ -98,25 +98,8 @@ export default function HistoryPage() {
       
       let matchesDate = true;
       if (dateRange !== "All") {
-        const entryDate = new Date(entry.timestamp);
-        const now = new Date();
         
-        switch (dateRange) {
-          case "Today":
-            matchesDate = entryDate.toDateString() === now.toDateString();
-            break;
-          case "This Week":
-            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-            matchesDate = entryDate >= weekAgo;
-            break;
-          case "This Month":
-            const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-            matchesDate = entryDate >= monthAgo;
-            break;
-          case "This Year":
-            matchesDate = entryDate.getFullYear() === now.getFullYear();
-            break;
-        }
+       
       }
       
       return matchesSearch && matchesType && matchesStatus && matchesDate;
