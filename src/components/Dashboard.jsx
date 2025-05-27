@@ -123,6 +123,7 @@ export default function Dashboard() {
   }, []);
 
   const handleSectionChange = (section) => {
+    console.log("Section changed to:", section); // Debug log
     setActiveSection(section);
   };
 
@@ -194,6 +195,8 @@ export default function Dashboard() {
   };
 
   const renderContent = () => {
+    console.log("Rendering content for section:", activeSection); // Debug log
+    
     switch (activeSection) {
       case "dashboard":
         return (
@@ -418,6 +421,7 @@ export default function Dashboard() {
         );
       
       case "equipments":
+        console.log("Rendering EquipmentPage component"); // Debug log
         return <EquipmentPage />;
       
       case "request-forms":
