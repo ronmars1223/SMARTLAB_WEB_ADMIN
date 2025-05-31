@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from "react";
 import { ref, push, onValue, remove, update } from "firebase/database";
 import { database } from "../firebase";
+// Import EquipmentMaintenance - adjust path as needed
+import EquipmentMaintenance from "./equipment/EquipmentMaintenance";
 import "../CSS/Equipment.css";
 
 export default function EquipmentPage() {
@@ -387,7 +389,7 @@ export default function EquipmentPage() {
       {/* Header */}
       <div className="page-header">
         <h1 className="page-title">Laboratory Equipment Management</h1>
-        <p className="page-subtitle">Manage equipment categories and individual laboratory equipment.</p>
+        <p className="page-subtitle">Manage equipment categories, individual laboratory equipment, and maintenance schedules.</p>
       </div>
 
       {/* Navigation Tabs */}
@@ -405,6 +407,13 @@ export default function EquipmentPage() {
         >
           <span className="nav-tab-icon">⚙️</span>
           Individual Equipment
+        </button>
+        <button
+          onClick={() => setActiveTab("maintenance")}
+          className={`nav-tab ${activeTab === "maintenance" ? "active" : ""}`}
+        >
+          <span className="nav-tab-icon">🔧</span>
+          Equipment Maintenance
         </button>
       </div>
 
@@ -668,6 +677,15 @@ export default function EquipmentPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Maintenance Tab */}
+      {activeTab === "maintenance" && (
+        <EquipmentMaintenance
+          categories={categories}
+          equipments={equipments}
+          selectedCategory={selectedCategory}
+        />
       )}
 
       {/* Category Modal */}
