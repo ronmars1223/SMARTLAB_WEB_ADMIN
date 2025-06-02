@@ -18,15 +18,7 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
     equipmentId: "",
     type: "Preventive",
     description: "",
-    performedBy: "",
-    datePerformed: "",
-    timeSpent: "",
-    cost: "",
-    partsReplaced: "",
-    notes: "",
-    status: "Completed",
-    nextMaintenanceDate: "",
-    priority: "Medium"
+    datePerformed: ""
   });
 
   const [scheduleFormData, setScheduleFormData] = useState({
@@ -34,13 +26,7 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
     type: "Preventive",
     description: "",
     scheduledDate: "",
-    assignedTo: "",
-    priority: "Medium",
-    estimatedTime: "",
-    estimatedCost: "",
-    notes: "",
-    frequency: "Monthly",
-    status: "Scheduled"
+    notes: ""
   });
 
   // Fetch maintenance records when category changes
@@ -127,7 +113,9 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
     try {
       const maintenanceData = {
         ...maintenanceFormData,
-        categoryId: selectedCategory
+        categoryId: selectedCategory,
+        status: "Completed",
+        priority: "Medium"
       };
 
       if (editingMaintenance) {
@@ -146,11 +134,10 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
         });
         
         // Update equipment's last maintenance date
-        if (maintenanceFormData.datePerformed && maintenanceFormData.status === "Completed") {
+        if (maintenanceFormData.datePerformed) {
           const equipmentRef = ref(database, `equipment_categories/${selectedCategory}/equipments/${maintenanceFormData.equipmentId}`);
           await update(equipmentRef, {
-            lastMaintenanceDate: maintenanceFormData.datePerformed,
-            nextMaintenanceDate: maintenanceFormData.nextMaintenanceDate || null
+            lastMaintenanceDate: maintenanceFormData.datePerformed
           });
         }
         
@@ -175,7 +162,9 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
     try {
       const scheduleData = {
         ...scheduleFormData,
-        categoryId: selectedCategory
+        categoryId: selectedCategory,
+        priority: "Medium",
+        status: "Scheduled"
       };
 
       const scheduleRef = ref(database, `equipment_categories/${selectedCategory}/scheduled_maintenance`);
@@ -199,15 +188,7 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
       equipmentId: record.equipmentId || "",
       type: record.type || "Preventive",
       description: record.description || "",
-      performedBy: record.performedBy || "",
-      datePerformed: record.datePerformed || "",
-      timeSpent: record.timeSpent || "",
-      cost: record.cost || "",
-      partsReplaced: record.partsReplaced || "",
-      notes: record.notes || "",
-      status: record.status || "Completed",
-      nextMaintenanceDate: record.nextMaintenanceDate || "",
-      priority: record.priority || "Medium"
+      datePerformed: record.datePerformed || ""
     });
     setShowAddMaintenanceForm(true);
   };
@@ -243,15 +224,7 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
       equipmentId: scheduledItem.equipmentId,
       type: scheduledItem.type,
       description: scheduledItem.description,
-      performedBy: "",
-      datePerformed: new Date().toISOString().split('T')[0],
-      timeSpent: scheduledItem.estimatedTime || "",
-      cost: scheduledItem.estimatedCost || "",
-      partsReplaced: "",
-      notes: `Completed from scheduled maintenance: ${scheduledItem.notes || ''}`,
-      status: "Completed",
-      nextMaintenanceDate: "",
-      priority: scheduledItem.priority
+      datePerformed: new Date().toISOString().split('T')[0]
     });
     setShowAddMaintenanceForm(true);
   };
@@ -261,15 +234,7 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
       equipmentId: "",
       type: "Preventive",
       description: "",
-      performedBy: "",
-      datePerformed: "",
-      timeSpent: "",
-      cost: "",
-      partsReplaced: "",
-      notes: "",
-      status: "Completed",
-      nextMaintenanceDate: "",
-      priority: "Medium"
+      datePerformed: ""
     });
     setShowAddMaintenanceForm(false);
     setEditingMaintenance(null);
@@ -281,13 +246,7 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
       type: "Preventive",
       description: "",
       scheduledDate: "",
-      assignedTo: "",
-      priority: "Medium",
-      estimatedTime: "",
-      estimatedCost: "",
-      notes: "",
-      frequency: "Monthly",
-      status: "Scheduled"
+      notes: ""
     });
     setShowScheduleForm(false);
   };
@@ -324,8 +283,7 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
   const filteredMaintenanceRecords = maintenanceRecords.filter(record => {
     const matchesSearch = !searchTerm || 
       getEquipmentName(record.equipmentId).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.performedBy?.toLowerCase().includes(searchTerm.toLowerCase());
+      record.description?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = filterStatus === "all" || record.status === filterStatus;
     const matchesPriority = filterPriority === "all" || record.priority === filterPriority;
@@ -337,10 +295,9 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
   const filteredScheduledMaintenance = scheduledMaintenance.filter(schedule => {
     const matchesSearch = !searchTerm || 
       getEquipmentName(schedule.equipmentId).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      schedule.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      schedule.assignedTo?.toLowerCase().includes(searchTerm.toLowerCase());
+      schedule.description?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesPriority = filterPriority === "all" || schedule.priority === filterPriority;
+    const matchesPriority = filterPriority === "all" || (schedule.priority || "Medium") === filterPriority;
     
     return matchesSearch && matchesPriority;
   });
@@ -504,30 +461,22 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
                         borderRadius: '20px',
                         fontSize: '0.75rem',
                         fontWeight: '600',
-                        backgroundColor: getPriorityColor(record.priority) + "20",
-                        color: getPriorityColor(record.priority)
+                        backgroundColor: getPriorityColor(record.priority || "Medium") + "20",
+                        color: getPriorityColor(record.priority || "Medium")
                       }}>
-                        {record.priority}
+                        {record.priority || "Medium"}
                       </span>
                     </div>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
                     <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>Performed By:</span>
-                      <div style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '500' }}>{record.performedBy || "—"}</div>
-                    </div>
-                    <div>
                       <span style={{ fontSize: '0.75rem', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>Date:</span>
                       <div style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '500' }}>{record.datePerformed || "—"}</div>
                     </div>
                     <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>Time Spent:</span>
-                      <div style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '500' }}>{record.timeSpent || "—"}</div>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>Cost:</span>
-                      <div style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '500' }}>{record.cost ? `$${record.cost}` : "—"}</div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>Status:</span>
+                      <div style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '500' }}>{record.status || "Completed"}</div>
                     </div>
                   </div>
 
@@ -605,10 +554,10 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
                         borderRadius: '20px',
                         fontSize: '0.75rem',
                         fontWeight: '600',
-                        backgroundColor: getPriorityColor(schedule.priority) + "20",
-                        color: getPriorityColor(schedule.priority)
+                        backgroundColor: getPriorityColor(schedule.priority || "Medium") + "20",
+                        color: getPriorityColor(schedule.priority || "Medium")
                       }}>
-                        {schedule.priority}
+                        {schedule.priority || "Medium"}
                       </span>
                       {isMaintenanceOverdue(schedule.scheduledDate) && (
                         <span style={{
@@ -630,18 +579,12 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
                       <span style={{ fontSize: '0.75rem', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>Scheduled Date:</span>
                       <div style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '500' }}>{schedule.scheduledDate}</div>
                     </div>
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>Assigned To:</span>
-                      <div style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '500' }}>{schedule.assignedTo || "—"}</div>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>Est. Time:</span>
-                      <div style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '500' }}>{schedule.estimatedTime || "—"}</div>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>Est. Cost:</span>
-                      <div style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '500' }}>{schedule.estimatedCost ? `$${schedule.estimatedCost}` : "—"}</div>
-                    </div>
+                    {schedule.notes && (
+                      <div>
+                        <span style={{ fontSize: '0.75rem', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase' }}>Notes:</span>
+                        <div style={{ fontSize: '0.875rem', color: '#111827', fontWeight: '500' }}>{schedule.notes}</div>
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', paddingTop: '1rem', borderTop: '1px solid #f3f4f6' }}>
@@ -665,330 +608,502 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
         </div>
       )}
 
-      {/* Add/Edit Maintenance Modal */}
+      {/* Add/Edit Maintenance Modal - New Simplified Form */}
       {showAddMaintenanceForm && (
-        <div className="modal-overlay">
-          <div className="modal" style={{ maxWidth: '600px' }}>
-            <div className="modal-header">
-              <h2 className="modal-title">
-                {editingMaintenance ? "Edit Maintenance Record" : "Add Maintenance Record"}
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '500px',
+            maxHeight: '90vh',
+            overflow: 'hidden',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '1.5rem 1.5rem 1rem 1.5rem',
+              borderBottom: '1px solid #f3f4f6',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <h2 style={{
+                fontSize: '1.25rem',
+                fontWeight: '600',
+                color: '#111827',
+                margin: 0
+              }}>
+                {editingMaintenance ? "Edit Maintenance" : "Add Maintenance"}
               </h2>
-              <button onClick={resetMaintenanceForm} className="modal-close">×</button>
+              <button
+                onClick={resetMaintenanceForm}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.5rem',
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  padding: '0.25rem',
+                  lineHeight: 1
+                }}
+              >
+                ×
+              </button>
             </div>
 
-            <form onSubmit={handleMaintenanceSubmit} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            {/* Form Content */}
+            <div style={{
+              padding: '1.5rem',
+              maxHeight: 'calc(90vh - 120px)',
+              overflowY: 'auto'
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {/* Equipment Selection */}
                 <div>
-                  <label className="form-label required">Equipment</label>
-                  <select
-                    name="equipmentId"
-                    value={maintenanceFormData.equipmentId}
+                  <label style={{
+                    display: 'block',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Equipment
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <select
+                      name="equipmentId"
+                      value={maintenanceFormData.equipmentId}
+                      onChange={handleMaintenanceInputChange}
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '0.875rem 1rem',
+                        fontSize: '1rem',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        backgroundColor: '#f9fafb',
+                        color: maintenanceFormData.equipmentId ? '#111827' : '#9ca3af',
+                        appearance: 'none',
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.5rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5em 1.5em',
+                        paddingRight: '2.5rem'
+                      }}
+                    >
+                      <option value="">Select Equipment</option>
+                      {equipments.map((equipment) => (
+                        <option key={equipment.id} value={equipment.id}>
+                          {equipment.name} ({equipment.serialNumber})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Maintenance Type */}
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Maintenance Type
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <select
+                      name="type"
+                      value={maintenanceFormData.type}
+                      onChange={handleMaintenanceInputChange}
+                      style={{
+                        width: '100%',
+                        padding: '0.875rem 1rem',
+                        fontSize: '1rem',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        backgroundColor: '#f9fafb',
+                        color: '#111827',
+                        appearance: 'none',
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.5rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5em 1.5em',
+                        paddingRight: '2.5rem'
+                      }}
+                    >
+                      <option value="Preventive">Preventive</option>
+                      <option value="Corrective">Corrective</option>
+                      <option value="Emergency">Emergency</option>
+                      <option value="Calibration">Calibration</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Description
+                  </label>
+                  <textarea
+                    name="description"
+                    value={maintenanceFormData.description}
                     onChange={handleMaintenanceInputChange}
+                    placeholder="Enter maintenance details"
                     required
-                    className="form-select"
-                  >
-                    <option value="">Select Equipment</option>
-                    {equipments.map((equipment) => (
-                      <option key={equipment.id} value={equipment.id}>
-                        {equipment.name} ({equipment.serialNumber})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="form-label">Maintenance Type</label>
-                  <select
-                    name="type"
-                    value={maintenanceFormData.type}
-                    onChange={handleMaintenanceInputChange}
-                    className="form-select"
-                  >
-                    <option value="Preventive">Preventive</option>
-                    <option value="Corrective">Corrective</option>
-                    <option value="Emergency">Emergency</option>
-                    <option value="Calibration">Calibration</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="form-label required">Description</label>
-                <textarea
-                  name="description"
-                  value={maintenanceFormData.description}
-                  onChange={handleMaintenanceInputChange}
-                  placeholder="Describe the maintenance work performed"
-                  required
-                  rows="3"
-                  className="form-textarea"
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div>
-                  <label className="form-label">Performed By</label>
-                  <input
-                    type="text"
-                    name="performedBy"
-                    value={maintenanceFormData.performedBy}
-                    onChange={handleMaintenanceInputChange}
-                    placeholder="Technician name"
-                    className="form-input"
+                    rows="4"
+                    style={{
+                      width: '100%',
+                      padding: '0.875rem 1rem',
+                      fontSize: '1rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      backgroundColor: '#f9fafb',
+                      color: '#111827',
+                      resize: 'vertical',
+                      fontFamily: 'inherit'
+                    }}
                   />
                 </div>
+
+                {/* Date */}
                 <div>
-                  <label className="form-label">Date Performed</label>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Date
+                  </label>
                   <input
                     type="date"
                     name="datePerformed"
                     value={maintenanceFormData.datePerformed}
                     onChange={handleMaintenanceInputChange}
-                    className="form-input"
+                    style={{
+                      width: '100%',
+                      padding: '0.875rem 1rem',
+                      fontSize: '1rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      backgroundColor: '#f9fafb',
+                      color: maintenanceFormData.datePerformed ? '#111827' : '#9ca3af'
+                    }}
                   />
                 </div>
-              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div>
-                  <label className="form-label">Time Spent</label>
-                  <input
-                    type="text"
-                    name="timeSpent"
-                    value={maintenanceFormData.timeSpent}
-                    onChange={handleMaintenanceInputChange}
-                    placeholder="e.g., 2 hours"
-                    className="form-input"
-                  />
-                </div>
-                <div>
-                  <label className="form-label">Cost</label>
-                  <input
-                    type="number"
-                    name="cost"
-                    value={maintenanceFormData.cost}
-                    onChange={handleMaintenanceInputChange}
-                    placeholder="0.00"
-                    step="0.01"
-                    className="form-input"
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div>
-                  <label className="form-label">Status</label>
-                  <select
-                    name="status"
-                    value={maintenanceFormData.status}
-                    onChange={handleMaintenanceInputChange}
-                    className="form-select"
+                {/* Submit Button */}
+                <div style={{ paddingTop: '1rem' }}>
+                  <button
+                    onClick={handleMaintenanceSubmit}
+                    style={{
+                      width: '100%',
+                      backgroundColor: '#10b981',
+                      color: 'white',
+                      padding: '0.875rem 1rem',
+                      fontSize: '1rem',
+                      fontWeight: '600',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#059669'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = '#10b981'}
                   >
-                    <option value="Completed">Completed</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Pending">Pending</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="form-label">Priority</label>
-                  <select
-                    name="priority"
-                    value={maintenanceFormData.priority}
-                    onChange={handleMaintenanceInputChange}
-                    className="form-select"
-                  >
-                    <option value="High">High</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Low">Low</option>
-                  </select>
+                    Submit Maintenance
+                  </button>
                 </div>
               </div>
-
-              <div>
-                <label className="form-label">Notes</label>
-                <textarea
-                  name="notes"
-                  value={maintenanceFormData.notes}
-                  onChange={handleMaintenanceInputChange}
-                  placeholder="Additional notes"
-                  rows="3"
-                  className="form-textarea"
-                />
-              </div>
-
-              <div className="modal-actions">
-                <button type="button" onClick={resetMaintenanceForm} className="btn btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  {editingMaintenance ? "Update Record" : "Add Record"}
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
 
       {/* Schedule Maintenance Modal */}
       {showScheduleForm && (
-        <div className="modal-overlay">
-          <div className="modal" style={{ maxWidth: '600px' }}>
-            <div className="modal-header">
-              <h2 className="modal-title">Schedule Maintenance</h2>
-              <button onClick={resetScheduleForm} className="modal-close">×</button>
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '500px',
+            maxHeight: '90vh',
+            overflow: 'hidden',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '1.5rem 1.5rem 1rem 1.5rem',
+              borderBottom: '1px solid #f3f4f6',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <h2 style={{
+                fontSize: '1.25rem',
+                fontWeight: '600',
+                color: '#111827',
+                margin: 0
+              }}>
+                Schedule Maintenance
+              </h2>
+              <button
+                onClick={resetScheduleForm}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.5rem',
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  padding: '0.25rem',
+                  lineHeight: 1
+                }}
+              >
+                ×
+              </button>
             </div>
 
-            <form onSubmit={handleScheduleSubmit} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            {/* Form Content */}
+            <div style={{
+              padding: '1.5rem',
+              maxHeight: 'calc(90vh - 120px)',
+              overflowY: 'auto'
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {/* Equipment Selection */}
                 <div>
-                  <label className="form-label required">Equipment</label>
-                  <select
-                    name="equipmentId"
-                    value={scheduleFormData.equipmentId}
+                  <label style={{
+                    display: 'block',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Equipment
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <select
+                      name="equipmentId"
+                      value={scheduleFormData.equipmentId}
+                      onChange={handleScheduleInputChange}
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '0.875rem 1rem',
+                        fontSize: '1rem',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        backgroundColor: '#f9fafb',
+                        color: scheduleFormData.equipmentId ? '#111827' : '#9ca3af',
+                        appearance: 'none',
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.5rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5em 1.5em',
+                        paddingRight: '2.5rem'
+                      }}
+                    >
+                      <option value="">Select Equipment</option>
+                      {equipments.map((equipment) => (
+                        <option key={equipment.id} value={equipment.id}>
+                          {equipment.name} ({equipment.serialNumber})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Maintenance Type */}
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Maintenance Type
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <select
+                      name="type"
+                      value={scheduleFormData.type}
+                      onChange={handleScheduleInputChange}
+                      style={{
+                        width: '100%',
+                        padding: '0.875rem 1rem',
+                        fontSize: '1rem',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        backgroundColor: '#f9fafb',
+                        color: '#111827',
+                        appearance: 'none',
+                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+                        backgroundPosition: 'right 0.5rem center',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundSize: '1.5em 1.5em',
+                        paddingRight: '2.5rem'
+                      }}
+                    >
+                      <option value="Preventive">Preventive</option>
+                      <option value="Corrective">Corrective</option>
+                      <option value="Emergency">Emergency</option>
+                      <option value="Calibration">Calibration</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Description
+                  </label>
+                  <textarea
+                    name="description"
+                    value={scheduleFormData.description}
                     onChange={handleScheduleInputChange}
+                    placeholder="Describe the maintenance work to be performed"
                     required
-                    className="form-select"
-                  >
-                    <option value="">Select Equipment</option>
-                    {equipments.map((equipment) => (
-                      <option key={equipment.id} value={equipment.id}>
-                        {equipment.name} ({equipment.serialNumber})
-                      </option>
-                    ))}
-                  </select>
+                    rows="4"
+                    style={{
+                      width: '100%',
+                      padding: '0.875rem 1rem',
+                      fontSize: '1rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      backgroundColor: '#f9fafb',
+                      color: '#111827',
+                      resize: 'vertical',
+                      fontFamily: 'inherit'
+                    }}
+                  />
                 </div>
-                <div>
-                  <label className="form-label">Maintenance Type</label>
-                  <select
-                    name="type"
-                    value={scheduleFormData.type}
-                    onChange={handleScheduleInputChange}
-                    className="form-select"
-                  >
-                    <option value="Preventive">Preventive</option>
-                    <option value="Corrective">Corrective</option>
-                    <option value="Emergency">Emergency</option>
-                    <option value="Calibration">Calibration</option>
-                  </select>
-                </div>
-              </div>
 
-              <div>
-                <label className="form-label required">Description</label>
-                <textarea
-                  name="description"
-                  value={scheduleFormData.description}
-                  onChange={handleScheduleInputChange}
-                  placeholder="Describe the maintenance work to be performed"
-                  required
-                  rows="3"
-                  className="form-textarea"
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                {/* Scheduled Date */}
                 <div>
-                  <label className="form-label required">Scheduled Date</label>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Scheduled Date
+                  </label>
                   <input
                     type="date"
                     name="scheduledDate"
                     value={scheduleFormData.scheduledDate}
                     onChange={handleScheduleInputChange}
                     required
-                    className="form-input"
+                    style={{
+                      width: '100%',
+                      padding: '0.875rem 1rem',
+                      fontSize: '1rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      backgroundColor: '#f9fafb',
+                      color: scheduleFormData.scheduledDate ? '#111827' : '#9ca3af'
+                    }}
                   />
                 </div>
-                <div>
-                  <label className="form-label">Assigned To</label>
-                  <input
-                    type="text"
-                    name="assignedTo"
-                    value={scheduleFormData.assignedTo}
-                    onChange={handleScheduleInputChange}
-                    placeholder="Technician name"
-                    className="form-input"
-                  />
-                </div>
-              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                {/* Notes */}
                 <div>
-                  <label className="form-label">Priority</label>
-                  <select
-                    name="priority"
-                    value={scheduleFormData.priority}
+                  <label style={{
+                    display: 'block',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Notes
+                  </label>
+                  <textarea
+                    name="notes"
+                    value={scheduleFormData.notes}
                     onChange={handleScheduleInputChange}
-                    className="form-select"
+                    placeholder="Additional notes or instructions"
+                    rows="3"
+                    style={{
+                      width: '100%',
+                      padding: '0.875rem 1rem',
+                      fontSize: '1rem',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      backgroundColor: '#f9fafb',
+                      color: '#111827',
+                      resize: 'vertical',
+                      fontFamily: 'inherit'
+                    }}
+                  />
+                </div>
+
+                {/* Submit Button */}
+                <div style={{ paddingTop: '1rem' }}>
+                  <button
+                    onClick={handleScheduleSubmit}
+                    style={{
+                      width: '100%',
+                      backgroundColor: '#10b981',
+                      color: 'white',
+                      padding: '0.875rem 1rem',
+                      fontSize: '1rem',
+                      fontWeight: '600',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#059669'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = '#10b981'}
                   >
-                    <option value="High">High</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Low">Low</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="form-label">Frequency</label>
-                  <select
-                    name="frequency"
-                    value={scheduleFormData.frequency}
-                    onChange={handleScheduleInputChange}
-                    className="form-select"
-                  >
-                    <option value="One-time">One-time</option>
-                    <option value="Weekly">Weekly</option>
-                    <option value="Monthly">Monthly</option>
-                    <option value="Quarterly">Quarterly</option>
-                    <option value="Semi-annually">Semi-annually</option>
-                    <option value="Annually">Annually</option>
-                  </select>
+                    Schedule Maintenance
+                  </button>
                 </div>
               </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div>
-                  <label className="form-label">Estimated Time</label>
-                  <input
-                    type="text"
-                    name="estimatedTime"
-                    value={scheduleFormData.estimatedTime}
-                    onChange={handleScheduleInputChange}
-                    placeholder="e.g., 2 hours"
-                    className="form-input"
-                  />
-                </div>
-                <div>
-                  <label className="form-label">Estimated Cost</label>
-                  <input
-                    type="number"
-                    name="estimatedCost"
-                    value={scheduleFormData.estimatedCost}
-                    onChange={handleScheduleInputChange}
-                    placeholder="0.00"
-                    step="0.01"
-                    className="form-input"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="form-label">Notes</label>
-                <textarea
-                  name="notes"
-                  value={scheduleFormData.notes}
-                  onChange={handleScheduleInputChange}
-                  placeholder="Additional notes or instructions"
-                  rows="3"
-                  className="form-textarea"
-                />
-              </div>
-
-              <div className="modal-actions">
-                <button type="button" onClick={resetScheduleForm} className="btn btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Schedule Maintenance
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
