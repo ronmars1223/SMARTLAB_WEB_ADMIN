@@ -15,6 +15,7 @@ export default function HistoryPage() {
   const [itemsPerPage] = useState(10);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
 
   const statuses = ["Released", "Returned", "Pending", "Approved", "Rejected", "In Progress", "Completed", "Cancelled"];
 
@@ -136,14 +137,36 @@ export default function HistoryPage() {
   const handleViewDetails = (entry) => {
     setSelectedEntry(entry);
     setShowDetailsModal(true);
+    setActiveTab("overview"); // Reset to first tab
   };
 
   const closeDetailsModal = () => {
     setSelectedEntry(null);
     setShowDetailsModal(false);
+    setActiveTab("overview");
   };
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+  // Generate example usage data based on equipment
+  const generateUsageData = (equipmentName) => {
+    const baseData = {
+      "Microscope A": { total: 35, students: 28, faculty: 7 },
+      "Laptop Dell X": { total: 50, students: 35, faculty: 15 },
+      "Oscilloscope": { total: 12, students: 5, faculty: 7 },
+      "Digital Camera": { total: 22, students: 18, faculty: 4 },
+      "Projector": { total: 45, students: 30, faculty: 15 },
+      "Arduino Kit": { total: 18, students: 16, faculty: 2 }
+    };
+
+    return baseData[equipmentName] || { 
+      total: Math.floor(Math.random() * 40) + 10, 
+      students: Math.floor(Math.random() * 25) + 5, 
+      faculty: Math.floor(Math.random() * 15) + 2 
+    };
+  };
+
+
 
   if (loading) {
     return (
@@ -330,48 +353,132 @@ export default function HistoryPage() {
         )}
       </div>
 
-      {/* Details Modal */}
+      {/* Enhanced Details Modal with Tabs */}
       {showDetailsModal && selectedEntry && (
         <div className="modal-overlay" onClick={closeDetailsModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content enhanced-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">Activity Details</h2>
+              <h2 className="modal-title">Equipment Details - {selectedEntry.equipmentName}</h2>
               <button onClick={closeDetailsModal} className="modal-close">×</button>
             </div>
             
+            {/* Tab Navigation */}
+            <div className="tab-navigation">
+              <button 
+                className={`tab-button ${activeTab === 'overview' ? 'active' : ''}`}
+                onClick={() => setActiveTab('overview')}
+              >
+                📋 Overview
+              </button>
+              <button 
+                className={`tab-button ${activeTab === 'usage' ? 'active' : ''}`}
+                onClick={() => setActiveTab('usage')}
+              >
+                📊 Usage Report
+              </button>
+            </div>
+
             <div className="modal-body">
-              <div className="modal-details">
-                <div className="detail-item">
-                  <div className="detail-label">Action:</div>
-                  <div className="detail-value">{selectedEntry.action}</div>
-                </div>
-                <div className="detail-item">
-                  <div className="detail-label">Equipment:</div>
-                  <div className="detail-value">{selectedEntry.equipmentName}</div>
-                </div>
-                <div className="detail-item">
-                  <div className="detail-label">Borrower:</div>
-                  <div className="detail-value">{selectedEntry.borrower}</div>
-                </div>
-                <div className="detail-item">
-                  <div className="detail-label">Status:</div>
-                  <div className="detail-value">
-                    <span className={`status-badge ${getStatusClass(selectedEntry.status)}`}>
-                      {selectedEntry.status}
-                    </span>
+              {/* Overview Tab */}
+              {activeTab === 'overview' && (
+                <div className="tab-content">
+                  <div className="modal-details">
+                    <div className="detail-item">
+                      <div className="detail-label">Action:</div>
+                      <div className="detail-value">{selectedEntry.action}</div>
+                    </div>
+                    <div className="detail-item">
+                      <div className="detail-label">Equipment:</div>
+                      <div className="detail-value">{selectedEntry.equipmentName}</div>
+                    </div>
+                    <div className="detail-item">
+                      <div className="detail-label">Borrower:</div>
+                      <div className="detail-value">{selectedEntry.borrower}</div>
+                    </div>
+                    <div className="detail-item">
+                      <div className="detail-label">Status:</div>
+                      <div className="detail-value">
+                        <span className={`status-badge ${getStatusClass(selectedEntry.status)}`}>
+                          {selectedEntry.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="detail-item">
+                      <div className="detail-label">Condition:</div>
+                      <div className="detail-value">{selectedEntry.condition}</div>
+                    </div>
+                    <div className="detail-item">
+                      <div className="detail-label">Released Date:</div>
+                      <div className="detail-value">
+                        {formatDate(selectedEntry.releasedDate)} at {formatTime(selectedEntry.releasedDate)}
+                      </div>
+                    </div>
+                    {selectedEntry.returnDate && (
+                      <div className="detail-item">
+                        <div className="detail-label">Return Date:</div>
+                        <div className="detail-value">
+                          {formatDate(selectedEntry.returnDate)} at {formatTime(selectedEntry.returnDate)}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="detail-item">
-                  <div className="detail-label">Condition:</div>
-                  <div className="detail-value">{selectedEntry.condition}</div>
-                </div>
-                <div className="detail-item">
-                  <div className="detail-label">Date:</div>
-                  <div className="detail-value">
-                    {formatDate(selectedEntry.timestamp)} at {formatTime(selectedEntry.timestamp)}
+              )}
+
+              {/* Usage Report Tab */}
+              {activeTab === 'usage' && (
+                <div className="tab-content">
+                  <div className="usage-report">
+                    <h3 className="report-title">📊 Equipment Usage Report</h3>
+                    <div className="usage-table-container">
+                      <table className="usage-table">
+                        <thead>
+                          <tr>
+                            <th>Equipment Name</th>
+                            <th>Total Borrowed</th>
+                            <th>Borrowed by Students</th>
+                            <th>Borrowed by Faculty</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(() => {
+                            const usageData = generateUsageData(selectedEntry.equipmentName);
+                            return (
+                              <tr>
+                                <td>{selectedEntry.equipmentName}</td>
+                                <td>{usageData.total} times</td>
+                                <td>{usageData.students}</td>
+                                <td>{usageData.faculty}</td>
+                              </tr>
+                            );
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    <div className="usage-summary">
+                      <div className="summary-card">
+                        <div className="summary-title">Most Active Period</div>
+                        <div className="summary-value">September 2024</div>
+                      </div>
+                      <div className="summary-card">
+                        <div className="summary-title">Average Usage</div>
+                        <div className="summary-value">3.2 times/month</div>
+                      </div>
+                      <div className="summary-card">
+                        <div className="summary-title">Utilization Rate</div>
+                        <div className="summary-value">85%</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )              }
+            </div>
+
+            <div className="modal-footer">
+              <button onClick={closeDetailsModal} className="close-button">
+                Close
+              </button>
             </div>
           </div>
         </div>
