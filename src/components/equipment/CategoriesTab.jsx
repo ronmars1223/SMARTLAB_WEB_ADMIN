@@ -196,7 +196,6 @@ function CategoryCard({ category, onEdit, onDelete, onSelect }) {
   return (
     <div className="category-card">
       <div className="category-card-header">
-        <div className="category-icon">📦</div>
         <div>
           <h3 className="category-card-title">{category.title}</h3>
         </div>

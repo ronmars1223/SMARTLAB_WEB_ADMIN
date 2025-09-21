@@ -2,7 +2,7 @@
 import React from "react";
 import "./Equipment_page.css";
 
-export default function EquipmentTable({ equipments, onEdit, onDelete }) {
+export default function EquipmentTable({ equipments, laboratories, onEdit, onDelete }) {
   return (
     <div className="equipment-table-container">
       <div className="table-header">
@@ -14,35 +14,61 @@ export default function EquipmentTable({ equipments, onEdit, onDelete }) {
           <thead>
             <tr>
               <th>Equipment Name</th>
-              <th>Quantity</th>
-              <th>Description</th>
+              <th>Model</th>
+              <th>Serial Number</th>
+              <th>Laboratory</th>
+              <th>Status</th>
               <th className="center">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {equipments.map((equipment) => (
-              <tr key={equipment.id}>
-                <td>{equipment.name || "—"}</td>
-                <td>{equipment.quantity || "—"}</td>
-                <td>{equipment.description || "—"}</td>
-                <td className="center">
-                  <div className="table-actions">
-                    <button
-                      onClick={() => onEdit(equipment)}
-                      className="btn-edit"
+            {equipments.map((equipment) => {
+              const laboratory = laboratories.find(lab => lab.labId === equipment.labId);
+              return (
+                <tr key={equipment.id}>
+                  <td>{equipment.name || "—"}</td>
+                  <td>{equipment.model || "—"}</td>
+                  <td>{equipment.serialNumber || "—"}</td>
+                  <td>
+                    {laboratory ? (
+                      <span className="laboratory-info">
+                        {laboratory.labName} ({laboratory.labId})
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td>
+                    <span 
+                      className="status-badge"
+                      style={{ 
+                        backgroundColor: equipment.status === 'Available' ? '#10b981' :
+                                       equipment.status === 'In Use' ? '#f59e0b' :
+                                       equipment.status === 'Maintenance' ? '#ef4444' : '#6b7280'
+                      }}
                     >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => onDelete(equipment.id)}
-                      className="btn-delete"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                      {equipment.status || "—"}
+                    </span>
+                  </td>
+                  <td className="center">
+                    <div className="table-actions">
+                      <button
+                        onClick={() => onEdit(equipment)}
+                        className="btn-edit"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => onDelete(equipment.id)}
+                        className="btn-delete"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

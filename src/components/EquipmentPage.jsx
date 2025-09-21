@@ -8,6 +8,7 @@ import "../CSS/Equipment.css";
 
 export default function EquipmentPage() {
   const [categories, setCategories] = useState([]);
+  const [laboratories, setLaboratories] = useState([]);
   const [equipments, setEquipments] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [showAddCategoryForm, setShowAddCategoryForm] = useState(false);
@@ -17,6 +18,7 @@ export default function EquipmentPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("categories");
   const [searchTerm, setSearchTerm] = useState("");
+  const [laboratoryFilter, setLaboratoryFilter] = useState("");
   
   const [categoryFormData, setCategoryFormData] = useState({
     title: "",
@@ -34,12 +36,14 @@ export default function EquipmentPage() {
     warrantyExpiry: "",
     assignedTo: "",
     notes: "",
-    categoryId: ""
+    categoryId: "",
+    labId: ""
   });
 
-  // Fetch categories from Firebase
+  // Fetch categories and laboratories from Firebase
   useEffect(() => {
     fetchCategories();
+    fetchLaboratories();
   }, []);
 
   // Fetch equipments when category is selected
@@ -72,6 +76,27 @@ export default function EquipmentPage() {
     } catch (error) {
       console.error("Error fetching categories:", error);
       setLoading(false);
+    }
+  };
+
+  const fetchLaboratories = () => {
+    try {
+      const laboratoriesRef = ref(database, 'laboratories');
+      
+      onValue(laboratoriesRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          const laboratoryList = Object.keys(data).map(key => ({
+            id: key,
+            ...data[key]
+          }));
+          setLaboratories(laboratoryList);
+        } else {
+          setLaboratories([]);
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching laboratories:", error);
     }
   };
 
@@ -229,7 +254,8 @@ export default function EquipmentPage() {
       warrantyExpiry: equipment.warrantyExpiry || "",
       assignedTo: equipment.assignedTo || "",
       notes: equipment.notes || "",
-      categoryId: equipment.categoryId || ""
+      categoryId: equipment.categoryId || "",
+      labId: equipment.labId || ""
     });
     setShowAddEquipmentForm(true);
   };
@@ -286,7 +312,8 @@ export default function EquipmentPage() {
       warrantyExpiry: "",
       assignedTo: "",
       notes: "",
-      categoryId: ""
+      categoryId: "",
+      labId: ""
     });
     setShowAddEquipmentForm(false);
     setEditingEquipment(null);
@@ -314,14 +341,18 @@ export default function EquipmentPage() {
     return { status: 'valid', text: 'Valid', color: '#10b981' };
   };
 
-  // Filter equipments based on search term
-  const filteredEquipments = equipments.filter(equipment =>
-    equipment.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    equipment.model?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    equipment.serialNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    equipment.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    equipment.assignedTo?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter equipments based on search term and laboratory filter
+  const filteredEquipments = equipments.filter(equipment => {
+    const matchesSearch = equipment.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      equipment.model?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      equipment.serialNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      equipment.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      equipment.assignedTo?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesLaboratory = !laboratoryFilter || equipment.labId === laboratoryFilter;
+    
+    return matchesSearch && matchesLaboratory;
+  });
 
   // Export equipment data to CSV
   const exportEquipmentData = () => {
@@ -420,12 +451,6 @@ export default function EquipmentPage() {
             {categories.map((category) => (
               <div key={category.id} className="category-card">
                 <div className="category-header">
-                  <div 
-                    className="category-icon"
-                    style={{ backgroundColor: `#${category.colorHex || "14b8a6"}20` }}
-                  >
-                    {category.icon || "📦"}
-                  </div>
                   <div className="category-info">
                     <h3 className="category-title">{category.title}</h3>
                     <p className="category-description">
@@ -541,6 +566,18 @@ export default function EquipmentPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="search-input"
               />
+              <select
+                value={laboratoryFilter}
+                onChange={(e) => setLaboratoryFilter(e.target.value)}
+                className="laboratory-filter"
+              >
+                <option value="">All Laboratories</option>
+                {laboratories.map((lab) => (
+                  <option key={lab.id} value={lab.labId}>
+                    {lab.labName}
+                  </option>
+                ))}
+              </select>
               <span className="search-icon">🔍</span>
             </div>
           )}
@@ -588,6 +625,7 @@ export default function EquipmentPage() {
                     <tr>
                       <th>Equipment</th>
                       <th>Serial Number</th>
+                      <th>Laboratory</th>
                       <th>Status</th>
                       <th>Condition</th>
                       <th>Location</th>
@@ -598,6 +636,7 @@ export default function EquipmentPage() {
                   <tbody>
                     {filteredEquipments.map((equipment) => {
                       const warrantyStatus = getWarrantyStatus(equipment.warrantyExpiry);
+                      const laboratory = laboratories.find(lab => lab.labId === equipment.labId);
                       return (
                         <tr key={equipment.id} className="equipment-row">
                           <td className="equipment-cell">
@@ -616,6 +655,16 @@ export default function EquipmentPage() {
                           </td>
                           <td className="serial-cell">
                             <span className="serial-number">{equipment.serialNumber}</span>
+                          </td>
+                          <td className="laboratory-cell">
+                            {laboratory ? (
+                              <div className="laboratory-info">
+                                <div className="laboratory-name">{laboratory.labName}</div>
+                                <div className="laboratory-id">{laboratory.labId}</div>
+                              </div>
+                            ) : (
+                              <span className="no-laboratory">—</span>
+                            )}
                           </td>
                           <td>
                             <span 
@@ -806,6 +855,22 @@ export default function EquipmentPage() {
 
               <div className="form-row">
                 <div className="form-group">
+                  <label className="form-label">Laboratory</label>
+                  <select
+                    name="labId"
+                    value={equipmentFormData.labId}
+                    onChange={handleEquipmentInputChange}
+                    className="form-select"
+                  >
+                    <option value="">Select Laboratory</option>
+                    {laboratories.map((lab) => (
+                      <option key={lab.id} value={lab.labId}>
+                        {lab.labName} ({lab.labId})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
                   <label className="form-label">Status</label>
                   <select
                     name="status"
@@ -819,6 +884,9 @@ export default function EquipmentPage() {
                     <option value="Retired">Retired</option>
                   </select>
                 </div>
+              </div>
+
+              <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Condition</label>
                   <select
@@ -832,6 +900,9 @@ export default function EquipmentPage() {
                     <option value="Fair">Fair</option>
                     <option value="Poor">Poor</option>
                   </select>
+                </div>
+                <div className="form-group">
+                  {/* Empty div for spacing */}
                 </div>
               </div>
 

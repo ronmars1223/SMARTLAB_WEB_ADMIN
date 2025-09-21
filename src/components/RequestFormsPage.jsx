@@ -222,7 +222,7 @@ export default function RequestFormsPage() {
                     Item Name {getSortIcon("itemName")}
                   </th>
                   <th onClick={() => handleSort("adviserName")} className="sortable">
-                    Adviser {getSortIcon("adviserName")}
+                    Borrower Name {getSortIcon("adviserName")}
                   </th>
                   <th onClick={() => handleSort("categoryName")} className="sortable">
                     Category {getSortIcon("categoryName")}
@@ -251,12 +251,12 @@ export default function RequestFormsPage() {
                         <span className="item-number">{request.itemNo || ""}</span>
                       </div>
                     </td>
-                    <td className="adviser-cell">
-                      <div className="adviser-info">
-                        <div className="adviser-avatar">
+                    <td className="borrower-cell">
+                      <div className="borrower-info">
+                        <div className="borrower-avatar">
                           {request.adviserName?.charAt(0)?.toUpperCase() || "?"}
                         </div>
-                        <span className="adviser-name">{request.adviserName || "Unknown"}</span>
+                        <span className="borrower-name">{request.adviserName || "Unknown"}</span>
                       </div>
                     </td>
                     <td>

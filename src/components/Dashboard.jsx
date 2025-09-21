@@ -8,6 +8,8 @@ import UserManagement from "./UserManagement";
 import RequestFormsPage from "./RequestFormsPage";
 import HistoryPage from "./HistoryPage";
 import AnnouncementModal from "./AnnouncementModal";
+import Analytics from "./Analytics";
+import LaboratoryManagement from "./LaboratoryManagement";
 import "../CSS/Dashboard.css";
 
 export default function Dashboard() {
@@ -27,6 +29,7 @@ export default function Dashboard() {
     borrowedByStudents: 0
   });
   const [borrowingData, setBorrowingData] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
 
   // Load announcements from Firebase
   useEffect(() => {
@@ -87,18 +90,63 @@ export default function Dashboard() {
 
         setBorrowingData(chartData);
 
+        // Calculate real adviser vs student borrowing statistics
+        let adviserBorrowings = 0;
+        let studentBorrowings = 0;
+        
+        requests.forEach(req => {
+          if (req.status === 'in_progress' || req.status === 'approved') {
+            // Enhanced user type detection similar to HistoryPage
+            const borrowerName = req.adviserName?.toLowerCase() || '';
+            const userEmail = req.userEmail?.toLowerCase() || '';
+            
+            // Check for faculty indicators
+            const facultyNamePatterns = [
+              'prof', 'professor', 'dr', 'doctor', 'mr', 'ms', 'mrs', 'sir', 'teacher',
+              'instructor', 'lecturer', 'dean', 'director', 'head', 'coordinator'
+            ];
+            
+            const facultyEmailPatterns = [
+              '@faculty.', '@staff.', '@prof.', '@instructor.', '@teacher.',
+              '.edu', '.ac.'
+            ];
+            
+            const studentEmailPatterns = ['@student.', '@stud.', 'student@', 'stud@'];
+            
+            const hasFacultyNamePattern = facultyNamePatterns.some(pattern => 
+              borrowerName.includes(pattern)
+            );
+            
+            const hasFacultyEmailPattern = facultyEmailPatterns.some(pattern => 
+              userEmail.includes(pattern)
+            );
+            
+            const hasStudentEmailPattern = studentEmailPatterns.some(pattern => 
+              userEmail.includes(pattern)
+            );
+            
+            const isFaculty = (hasFacultyNamePattern || hasFacultyEmailPattern) && !hasStudentEmailPattern;
+            
+            if (isFaculty) {
+              adviserBorrowings++;
+            } else {
+              studentBorrowings++;
+            }
+          }
+        });
+
         setDashboardStats(prev => ({
           ...prev,
           pendingRequests: pendingCount,
           borrowedItems: borrowedCount,
           overdueItems: overdueCount,
-          borrowedByAdviser: Math.floor(borrowedCount * 0.3), // Simulate adviser borrows
-          borrowedByStudents: Math.floor(borrowedCount * 0.7) // Simulate student borrows
+          borrowedByAdviser: adviserBorrowings,
+          borrowedByStudents: studentBorrowings
         }));
       }
     });
 
-    // You can add more listeners for equipment and users data
+    // Load equipment data
     const unsubscribeEquipment = onValue(equipmentRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -116,10 +164,121 @@ export default function Dashboard() {
       }
     });
 
+    // Load users data (estimate from borrow requests)
+    const unsubscribeUsers = onValue(borrowRequestsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const requests = Object.values(data);
+        // Get unique users from borrow requests
+        const uniqueUsers = new Set();
+        requests.forEach(req => {
+          if (req.userEmail) uniqueUsers.add(req.userEmail);
+          if (req.adviserName) uniqueUsers.add(req.adviserName);
+        });
+
+        setDashboardStats(prev => ({
+          ...prev,
+          totalUsers: uniqueUsers.size
+        }));
+      }
+    });
+
     return () => {
       unsubscribeBorrowRequests();
       unsubscribeEquipment();
+      unsubscribeUsers();
     };
+  }, []);
+
+  // Load recent activity data
+  useEffect(() => {
+    const loadRecentActivity = async () => {
+      try {
+        // Get recent borrow requests
+        const borrowRequestsRef = ref(database, 'borrow_requests');
+        const equipmentRef = ref(database, 'equipment');
+        const announcementsRef = ref(database, 'announcements');
+
+        // Import get function for one-time reads
+        const { get } = await import('firebase/database');
+        
+        const [borrowSnapshot, equipmentSnapshot, announcementsSnapshot] = await Promise.all([
+          get(borrowRequestsRef),
+          get(equipmentRef),
+          get(announcementsRef)
+        ]);
+
+        const activities = [];
+
+        // Process borrow requests
+        const borrowData = borrowSnapshot.val();
+        if (borrowData) {
+          Object.keys(borrowData).forEach(key => {
+            const request = borrowData[key];
+            activities.push({
+              id: `request_${key}`,
+              type: 'request',
+              title: request.status === 'approved' ? 'Borrow request approved' : 
+                     request.status === 'pending' ? 'New borrow request submitted' :
+                     request.status === 'rejected' ? 'Borrow request rejected' :
+                     'Borrow request status updated',
+              time: request.requestedAt || request.updatedAt,
+              icon: request.status === 'approved' ? 'info' : 'success',
+              details: {
+                item: request.itemName,
+                borrower: request.adviserName,
+                status: request.status
+              }
+            });
+          });
+        }
+
+        // Process equipment additions (simulate based on equipment count)
+        const equipmentData = equipmentSnapshot.val();
+        if (equipmentData) {
+          const equipmentCount = Object.keys(equipmentData).length;
+          // Add a simulated activity for equipment management
+          activities.push({
+            id: 'equipment_management',
+            type: 'equipment',
+            title: 'Equipment inventory updated',
+            time: new Date().toISOString(),
+            icon: 'success',
+            details: {
+              totalEquipment: equipmentCount
+            }
+          });
+        }
+
+        // Process announcements
+        const announcementsData = announcementsSnapshot.val();
+        if (announcementsData) {
+          Object.keys(announcementsData).forEach(key => {
+            const announcement = announcementsData[key];
+            activities.push({
+              id: `announcement_${key}`,
+              type: 'announcement',
+              title: 'New announcement published',
+              time: announcement.createdAt,
+              icon: 'primary',
+              details: {
+                title: announcement.title,
+                author: announcement.author
+              }
+            });
+          });
+        }
+
+        // Sort by time and take most recent 4
+        activities.sort((a, b) => new Date(b.time) - new Date(a.time));
+        setRecentActivity(activities.slice(0, 4));
+
+      } catch (error) {
+        console.error("Error loading recent activity:", error);
+      }
+    };
+
+    loadRecentActivity();
   }, []);
 
   const handleSectionChange = (section) => {
@@ -192,6 +351,20 @@ export default function Dashboard() {
       case 'low': return 'priority-low';
       default: return 'priority-medium';
     }
+  };
+
+  // Helper function to format time differences
+  const formatTimeAgo = (timestamp) => {
+    const now = new Date();
+    const time = new Date(timestamp);
+    const diffInSeconds = Math.floor((now - time) / 1000);
+    
+    if (diffInSeconds < 60) return 'Just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+    if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)} months ago`;
+    return `${Math.floor(diffInSeconds / 31536000)} years ago`;
   };
 
   const renderContent = () => {
@@ -277,34 +450,30 @@ export default function Dashboard() {
                   <p>Latest system activities</p>
                 </div>
                 <div className="activity-list">
-                  <div className="activity-item">
-                    <div className="activity-icon success">✅</div>
-                    <div className="activity-content">
-                      <div className="activity-title">New equipment added</div>
-                      <div className="activity-time">2 hours ago</div>
+                  {recentActivity.length > 0 ? (
+                    recentActivity.map((activity) => (
+                      <div key={activity.id} className="activity-item">
+                        <div className={`activity-icon ${activity.icon}`}>
+                          {activity.icon === 'success' ? '✅' : 
+                           activity.icon === 'info' ? '📋' :
+                           activity.icon === 'warning' ? '⚠️' :
+                           activity.icon === 'primary' ? '👤' : '📋'}
+                        </div>
+                        <div className="activity-content">
+                          <div className="activity-title">{activity.title}</div>
+                          <div className="activity-time">{formatTimeAgo(activity.time)}</div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="activity-item">
+                      <div className="activity-icon info">📋</div>
+                      <div className="activity-content">
+                        <div className="activity-title">No recent activity</div>
+                        <div className="activity-time">System is ready</div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="activity-item">
-                    <div className="activity-icon info">📋</div>
-                    <div className="activity-content">
-                      <div className="activity-title">Borrow request approved</div>
-                      <div className="activity-time">4 hours ago</div>
-                    </div>
-                  </div>
-                  <div className="activity-item">
-                    <div className="activity-icon warning">⚠️</div>
-                    <div className="activity-content">
-                      <div className="activity-title">Maintenance due reminder</div>
-                      <div className="activity-time">1 day ago</div>
-                    </div>
-                  </div>
-                  <div className="activity-item">
-                    <div className="activity-icon primary">👤</div>
-                    <div className="activity-content">
-                      <div className="activity-title">New user registered</div>
-                      <div className="activity-time">2 days ago</div>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -390,6 +559,9 @@ export default function Dashboard() {
         console.log("Rendering EquipmentPage component"); // Debug log
         return <EquipmentPage />;
       
+      case "laboratories":
+        return <LaboratoryManagement />;
+      
       case "request-forms":
         return <RequestFormsPage />;
       
@@ -398,6 +570,9 @@ export default function Dashboard() {
       
       case "users":
         return <UserManagement />;
+      
+      case "analytics":
+        return <Analytics />;
       
       case "profile":
         return (

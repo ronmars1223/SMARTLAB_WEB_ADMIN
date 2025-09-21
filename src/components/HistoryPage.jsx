@@ -148,21 +148,128 @@ export default function HistoryPage() {
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
-  // Generate example usage data based on equipment
-  const generateUsageData = (equipmentName) => {
-    const baseData = {
-      "Microscope A": { total: 35, students: 28, faculty: 7 },
-      "Laptop Dell X": { total: 50, students: 35, faculty: 15 },
-      "Oscilloscope": { total: 12, students: 5, faculty: 7 },
-      "Digital Camera": { total: 22, students: 18, faculty: 4 },
-      "Projector": { total: 45, students: 30, faculty: 15 },
-      "Arduino Kit": { total: 18, students: 16, faculty: 2 }
+  // Enhanced user type detection function
+  const determineUserType = (entry) => {
+    const borrowerName = entry.borrower?.toLowerCase() || '';
+    const userEmail = entry.details?.originalRequest?.userEmail?.toLowerCase() || '';
+    
+    // Check for faculty indicators in name
+    const facultyNamePatterns = [
+      'prof', 'professor', 'dr', 'doctor', 'mr', 'ms', 'mrs', 'sir', 'teacher',
+      'instructor', 'lecturer', 'dean', 'director', 'head', 'coordinator'
+    ];
+    
+    const hasFacultyNamePattern = facultyNamePatterns.some(pattern => 
+      borrowerName.includes(pattern)
+    );
+    
+    // Check for faculty email patterns (common institutional patterns)
+    const facultyEmailPatterns = [
+      '@faculty.', '@staff.', '@prof.', '@instructor.', '@teacher.',
+      '.edu', '.ac.' // Many academic institutions use these
+    ];
+    
+    const hasFacultyEmailPattern = facultyEmailPatterns.some(pattern => 
+      userEmail.includes(pattern)
+    );
+    
+    // Check if email contains student indicators
+    const studentEmailPatterns = ['@student.', '@stud.', 'student@', 'stud@'];
+    const hasStudentEmailPattern = studentEmailPatterns.some(pattern => 
+      userEmail.includes(pattern)
+    );
+    
+    // Return true if faculty indicators found and no student indicators
+    return (hasFacultyNamePattern || hasFacultyEmailPattern) && !hasStudentEmailPattern;
+  };
+
+  // Calculate real usage data from Firebase data
+  const calculateUsageData = (equipmentName) => {
+    // Filter history data for the specific equipment
+    const equipmentHistory = historyData.filter(entry => 
+      entry.equipmentName === equipmentName
+    );
+
+    // Count total borrowings (each "Item Released" action counts as one borrowing)
+    const totalBorrowings = equipmentHistory.filter(entry => 
+      entry.action === "Item Released"
+    ).length;
+
+    // Count borrowings by user type (students vs faculty)
+    let studentBorrowings = 0;
+    let facultyBorrowings = 0;
+
+    equipmentHistory.forEach(entry => {
+      if (entry.action === "Item Released") {
+        // Enhanced user type detection
+        const isFaculty = determineUserType(entry);
+        
+        if (isFaculty) {
+          facultyBorrowings++;
+        } else {
+          studentBorrowings++;
+        }
+      }
+    });
+
+    return {
+      total: totalBorrowings,
+      students: studentBorrowings,
+      faculty: facultyBorrowings
+    };
+  };
+
+  // Calculate usage statistics for the selected equipment
+  const calculateUsageStatistics = (equipmentName) => {
+    const equipmentHistory = historyData.filter(entry => 
+      entry.equipmentName === equipmentName
+    );
+
+    if (equipmentHistory.length === 0) {
+      return {
+        mostActivePeriod: "No data available",
+        averageUsage: "0 times/month",
+        utilizationRate: "0%"
+      };
+    }
+
+    // Calculate most active period (month with most borrowings)
+    const monthlyData = {};
+    equipmentHistory.forEach(entry => {
+      if (entry.action === "Item Released" && entry.timestamp) {
+        const date = new Date(entry.timestamp);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        monthlyData[monthKey] = (monthlyData[monthKey] || 0) + 1;
+      }
+    });
+
+    const mostActiveMonth = Object.entries(monthlyData).reduce((max, [month, count]) => 
+      count > max.count ? { month, count } : max, 
+      { month: "No data", count: 0 }
+    );
+
+    // Format the most active period
+    const formatMonth = (monthKey) => {
+      const [year, month] = monthKey.split('-');
+      const monthNames = ["January", "February", "March", "April", "May", "June",
+                         "July", "August", "September", "October", "November", "December"];
+      return `${monthNames[parseInt(month) - 1]} ${year}`;
     };
 
-    return baseData[equipmentName] || { 
-      total: Math.floor(Math.random() * 40) + 10, 
-      students: Math.floor(Math.random() * 25) + 5, 
-      faculty: Math.floor(Math.random() * 15) + 2 
+    // Calculate average usage per month
+    const totalMonths = Object.keys(monthlyData).length;
+    const totalBorrowings = Object.values(monthlyData).reduce((sum, count) => sum + count, 0);
+    const averageUsage = totalMonths > 0 ? (totalBorrowings / totalMonths).toFixed(1) : "0";
+
+    // Calculate utilization rate (simplified: percentage of months with activity)
+    const monthsWithActivity = Object.keys(monthlyData).length;
+    const totalPossibleMonths = Math.max(1, Math.ceil((new Date() - new Date(equipmentHistory[equipmentHistory.length - 1]?.timestamp || new Date())) / (1000 * 60 * 60 * 24 * 30)));
+    const utilizationRate = Math.round((monthsWithActivity / totalPossibleMonths) * 100);
+
+    return {
+      mostActivePeriod: mostActiveMonth.month !== "No data" ? formatMonth(mostActiveMonth.month) : "No data available",
+      averageUsage: `${averageUsage} times/month`,
+      utilizationRate: `${utilizationRate}%`
     };
   };
 
@@ -442,7 +549,7 @@ export default function HistoryPage() {
                         </thead>
                         <tbody>
                           {(() => {
-                            const usageData = generateUsageData(selectedEntry.equipmentName);
+                            const usageData = calculateUsageData(selectedEntry.equipmentName);
                             return (
                               <tr>
                                 <td>{selectedEntry.equipmentName}</td>
@@ -457,18 +564,25 @@ export default function HistoryPage() {
                     </div>
                     
                     <div className="usage-summary">
-                      <div className="summary-card">
-                        <div className="summary-title">Most Active Period</div>
-                        <div className="summary-value">September 2024</div>
-                      </div>
-                      <div className="summary-card">
-                        <div className="summary-title">Average Usage</div>
-                        <div className="summary-value">3.2 times/month</div>
-                      </div>
-                      <div className="summary-card">
-                        <div className="summary-title">Utilization Rate</div>
-                        <div className="summary-value">85%</div>
-                      </div>
+                      {(() => {
+                        const usageStats = calculateUsageStatistics(selectedEntry.equipmentName);
+                        return (
+                          <>
+                            <div className="summary-card">
+                              <div className="summary-title">Most Active Period</div>
+                              <div className="summary-value">{usageStats.mostActivePeriod}</div>
+                            </div>
+                            <div className="summary-card">
+                              <div className="summary-title">Average Usage</div>
+                              <div className="summary-value">{usageStats.averageUsage}</div>
+                            </div>
+                            <div className="summary-card">
+                              <div className="summary-title">Utilization Rate</div>
+                              <div className="summary-value">{usageStats.utilizationRate}</div>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>

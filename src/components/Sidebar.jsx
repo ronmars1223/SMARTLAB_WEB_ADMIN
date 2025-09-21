@@ -30,6 +30,11 @@ export default function Sidebar({ activeSection, onSectionChange }) {
       icon: "⚙️"
     },
     {
+      id: "laboratories",
+      label: "Laboratories",
+      icon: "🧪"
+    },
+    {
       id: "request-forms",
       label: "Request Forms",
       icon: "📋"
@@ -38,6 +43,11 @@ export default function Sidebar({ activeSection, onSectionChange }) {
       id: "history",
       label: "History",
       icon: "📊"
+    },
+    {
+      id: "analytics",
+      label: "Analytics",
+      icon: "📈"
     },
     {
       id: "users",

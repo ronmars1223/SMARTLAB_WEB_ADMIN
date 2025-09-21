@@ -134,25 +134,6 @@
   margin-bottom: 20px;
 }
 
-.category-icon {
-  width: 48px;
-  height: 48px;
-  background: rgba(42, 165, 157, 0.1);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16px;
-  font-size: 24px;
-  transition: all 0.3s ease;
-  color: #2aa59d;
-}
-
-.category-card:hover .category-icon {
-  transform: scale(1.1) rotate(5deg);
-  background: rgba(42, 165, 157, 0.15);
-}
-
 .category-card-title {
   margin: 0 0 4px 0;
   font-size: 20px;
