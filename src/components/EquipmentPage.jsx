@@ -1,6 +1,6 @@
 // src/components/EquipmentPage.jsx
-import React, { useState, useEffect } from "react";
-import { ref, push, onValue, remove, update } from "firebase/database";
+import React, { useState, useEffect, useCallback } from "react";
+import { ref, push, onValue, remove, update, get } from "firebase/database";
 import { database } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 // Import EquipmentMaintenance - adjust path as needed
@@ -12,19 +12,26 @@ export default function EquipmentPage() {
   const [categories, setCategories] = useState([]);
   const [laboratories, setLaboratories] = useState([]);
   const [equipments, setEquipments] = useState([]);
+  const [users, setUsers] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [showAddCategoryForm, setShowAddCategoryForm] = useState(false);
   const [showAddEquipmentForm, setShowAddEquipmentForm] = useState(false);
   const [editingEquipment, setEditingEquipment] = useState(null);
   const [editingCategory, setEditingCategory] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isSubmittingEquipment, setIsSubmittingEquipment] = useState(false);
+  const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState("");
   const [activeTab, setActiveTab] = useState("categories");
   const [searchTerm, setSearchTerm] = useState("");
   const [laboratoryFilter, setLaboratoryFilter] = useState("");
   
   const [categoryFormData, setCategoryFormData] = useState({
     title: "",
-    description: ""
+    description: "",
+    labId: ""
   });
 
   const [equipmentFormData, setEquipmentFormData] = useState({
@@ -42,22 +49,7 @@ export default function EquipmentPage() {
     labId: ""
   });
 
-  // Fetch categories and laboratories from Firebase
-  useEffect(() => {
-    fetchCategories();
-    fetchLaboratories();
-  }, []);
-
-  // Fetch equipments when category is selected
-  useEffect(() => {
-    if (selectedCategory) {
-      fetchEquipments(selectedCategory);
-    } else {
-      setEquipments([]);
-    }
-  }, [selectedCategory]);
-
-  const fetchCategories = () => {
+  const fetchCategories = useCallback(() => {
     try {
       setLoading(true);
       const categoriesRef = ref(database, 'equipment_categories');
@@ -69,7 +61,21 @@ export default function EquipmentPage() {
             id: key,
             ...data[key]
           }));
-          setCategories(categoryList);
+          
+          // Filter categories based on user role and lab assignment
+          let filteredCategories = categoryList;
+          if (!isAdmin()) {
+            const assignedLabIds = getAssignedLaboratoryIds();
+            if (assignedLabIds) {
+              // Filter categories to only show those from assigned laboratories
+              filteredCategories = categoryList.filter(category => {
+                const lab = laboratories.find(l => l.labId === category.labId);
+                return lab && assignedLabIds.includes(lab.id);
+              });
+            }
+          }
+          
+          setCategories(filteredCategories);
         } else {
           setCategories([]);
         }
@@ -79,9 +85,9 @@ export default function EquipmentPage() {
       console.error("Error fetching categories:", error);
       setLoading(false);
     }
-  };
+  }, [isAdmin, getAssignedLaboratoryIds, laboratories]);
 
-  const fetchLaboratories = () => {
+  const fetchLaboratories = useCallback(() => {
     try {
       const laboratoriesRef = ref(database, 'laboratories');
       
@@ -100,7 +106,57 @@ export default function EquipmentPage() {
     } catch (error) {
       console.error("Error fetching laboratories:", error);
     }
-  };
+  }, []);
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const usersRef = ref(database, 'users');
+      const snapshot = await get(usersRef);
+      
+      if (snapshot.exists()) {
+        const usersData = snapshot.val();
+        const fetchedUsers = [];
+        
+        // Convert the object to array with IDs
+        Object.keys(usersData).forEach((userId) => {
+          const userData = usersData[userId];
+          fetchedUsers.push({
+            id: userId,
+            name: userData.name || "Unknown",
+            email: userData.email || "No email",
+            role: userData.role || "user",
+            ...userData
+          });
+        });
+        
+        setUsers(fetchedUsers);
+      } else {
+        setUsers([]);
+      }
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  }, []);
+
+  // Fetch laboratories and users from Firebase
+  useEffect(() => {
+    fetchLaboratories();
+    fetchUsers();
+  }, [fetchLaboratories, fetchUsers]);
+
+  // Re-fetch categories when laboratories change (for filtering)
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
+
+  // Fetch equipments when category is selected
+  useEffect(() => {
+    if (selectedCategory) {
+      fetchEquipments(selectedCategory);
+    } else {
+      setEquipments([]);
+    }
+  }, [selectedCategory]);
 
   const fetchEquipments = (categoryId) => {
     try {
@@ -149,9 +205,29 @@ export default function EquipmentPage() {
 
   const handleEquipmentInputChange = (e) => {
     const { name, value } = e.target;
+    
+    let updatedData = { [name]: value };
+    
+    // Auto-populate Assigned To when laboratory is selected
+    if (name === 'labId' && value) {
+      const selectedLab = laboratories.find(lab => lab.labId === value);
+      
+      if (selectedLab && selectedLab.managerUserId) {
+        // Find the manager user
+        const managerUser = users.find(user => user.id === selectedLab.managerUserId);
+        
+        if (managerUser) {
+          updatedData.assignedTo = managerUser.name;
+        }
+      } else {
+        // Clear assignedTo if no manager is assigned to the lab
+        updatedData.assignedTo = "";
+      }
+    }
+    
     setEquipmentFormData(prev => ({
       ...prev,
-      [name]: value
+      ...updatedData
     }));
   };
 
@@ -163,30 +239,61 @@ export default function EquipmentPage() {
       return;
     }
 
+    if (isAdmin() && !categoryFormData.labId.trim()) {
+      setFeedbackMessage("Please select a laboratory for this category");
+      setShowErrorModal(true);
+      return;
+    }
+
+    setIsSubmittingCategory(true);
+
+    // Auto-assign labId for Lab Managers
+    let submissionData = { ...categoryFormData };
+    if (!isAdmin()) {
+      const assignedLabIds = getAssignedLaboratoryIds();
+      if (assignedLabIds && assignedLabIds.length > 0) {
+        // For Lab Managers, use their first assigned lab
+        const assignedLab = laboratories.find(lab => assignedLabIds.includes(lab.id));
+        if (assignedLab) {
+          submissionData.labId = assignedLab.labId;
+        }
+      }
+    }
+
     try {
       if (editingCategory) {
         const categoryRef = ref(database, `equipment_categories/${editingCategory.id}`);
         await update(categoryRef, {
-          ...categoryFormData,
+          ...submissionData,
           updatedAt: new Date().toISOString()
         });
-        alert("Category updated successfully!");
+        setFeedbackMessage("Category updated successfully!");
+        setShowSuccessModal(true);
       } else {
         const categoriesRef = ref(database, 'equipment_categories');
         await push(categoriesRef, {
-          ...categoryFormData,
+          ...submissionData,
           availableCount: 0,
           totalCount: 0,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         });
-        alert("Category added successfully!");
+        setFeedbackMessage("Category added successfully!");
+        setShowSuccessModal(true);
       }
       
-      resetCategoryForm();
+      // Close form after successful submission
+      setTimeout(() => {
+        resetCategoryForm();
+        setShowSuccessModal(false);
+      }, 1500);
+      
     } catch (error) {
       console.error("Error saving category:", error);
-      alert("Error saving category. Please try again.");
+      setFeedbackMessage(`Error saving category: ${error.message}. Please try again.`);
+      setShowErrorModal(true);
+    } finally {
+      setIsSubmittingCategory(false);
     }
   };
 
@@ -194,9 +301,12 @@ export default function EquipmentPage() {
     e.preventDefault();
     
     if (!equipmentFormData.name.trim() || !equipmentFormData.serialNumber.trim() || !selectedCategory) {
-      alert("Please fill in required fields and select a category");
+      setFeedbackMessage("Please fill in required fields and select a category");
+      setShowErrorModal(true);
       return;
     }
+
+    setIsSubmittingEquipment(true);
 
     try {
       const equipmentData = {
@@ -210,7 +320,8 @@ export default function EquipmentPage() {
           ...equipmentData,
           updatedAt: new Date().toISOString()
         });
-        alert("Equipment updated successfully!");
+        setFeedbackMessage("Equipment updated successfully!");
+        setShowSuccessModal(true);
       } else {
         const equipmentsRef = ref(database, `equipment_categories/${selectedCategory}/equipments`);
         await push(equipmentsRef, {
@@ -220,13 +331,22 @@ export default function EquipmentPage() {
         });
         
         await updateCategoryCounts(selectedCategory);
-        alert("Equipment added successfully!");
+        setFeedbackMessage("Equipment added successfully!");
+        setShowSuccessModal(true);
       }
       
-      resetEquipmentForm();
+      // Close form after successful submission
+      setTimeout(() => {
+        resetEquipmentForm();
+        setShowSuccessModal(false);
+      }, 1500);
+      
     } catch (error) {
       console.error("Error saving equipment:", error);
-      alert("Error saving equipment. Please try again.");
+      setFeedbackMessage(`Error saving equipment: ${error.message}. Please try again.`);
+      setShowErrorModal(true);
+    } finally {
+      setIsSubmittingEquipment(false);
     }
   };
 
@@ -253,13 +373,27 @@ export default function EquipmentPage() {
     setEditingCategory(category);
     setCategoryFormData({
       title: category.title || "",
-      description: category.description || ""
+      description: category.description || "",
+      labId: category.labId || ""
     });
     setShowAddCategoryForm(true);
   };
 
   const handleEditEquipment = (equipment) => {
     setEditingEquipment(equipment);
+    
+    // Auto-populate assignedTo if labId exists and has a manager
+    let assignedTo = equipment.assignedTo || "";
+    if (equipment.labId && !assignedTo) {
+      const selectedLab = laboratories.find(lab => lab.labId === equipment.labId);
+      if (selectedLab && selectedLab.managerUserId) {
+        const managerUser = users.find(user => user.id === selectedLab.managerUserId);
+        if (managerUser) {
+          assignedTo = managerUser.name;
+        }
+      }
+    }
+    
     setEquipmentFormData({
       name: equipment.name || "",
       model: equipment.model || "",
@@ -269,7 +403,7 @@ export default function EquipmentPage() {
       location: equipment.location || "",
       purchaseDate: equipment.purchaseDate || "",
       warrantyExpiry: equipment.warrantyExpiry || "",
-      assignedTo: equipment.assignedTo || "",
+      assignedTo: assignedTo,
       notes: equipment.notes || "",
       categoryId: equipment.categoryId || "",
       labId: equipment.labId || ""
@@ -311,7 +445,8 @@ export default function EquipmentPage() {
   const resetCategoryForm = () => {
     setCategoryFormData({
       title: "",
-      description: ""
+      description: "",
+      labId: ""
     });
     setShowAddCategoryForm(false);
     setEditingCategory(null);
@@ -473,6 +608,13 @@ export default function EquipmentPage() {
                     <p className="category-description">
                       {category.description || "No description"}
                     </p>
+                    {category.labId && (
+                      <div className="category-lab">
+                        <span className="lab-badge">
+                          🧪 {laboratories.find(lab => lab.labId === category.labId)?.labName || category.labId}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -768,6 +910,39 @@ export default function EquipmentPage() {
                 />
               </div>
 
+              <div className="form-group">
+                <label className="form-label required">Laboratory</label>
+                {isAdmin() ? (
+                  <select
+                    name="labId"
+                    value={categoryFormData.labId}
+                    onChange={handleCategoryInputChange}
+                    required
+                    className="form-select"
+                  >
+                    <option value="">Select Laboratory</option>
+                    {laboratories.map(lab => (
+                      <option key={lab.id} value={lab.labId}>
+                        {lab.labName} ({lab.labId})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="form-input-display">
+                    {(() => {
+                      const assignedLabIds = getAssignedLaboratoryIds();
+                      if (assignedLabIds && assignedLabIds.length > 0) {
+                        const assignedLab = laboratories.find(lab => assignedLabIds.includes(lab.id));
+                        return assignedLab ? `${assignedLab.labName} (${assignedLab.labId})` : 'No laboratory assigned';
+                      }
+                      return 'No laboratory assigned';
+                    })()}
+                  </div>
+                )}
+                <small className="form-help">
+                  {isAdmin() ? 'Select which laboratory this category belongs to' : 'This category will be created for your assigned laboratory'}
+                </small>
+              </div>
 
               <div className="form-group">
                 <label className="form-label">Description</label>
@@ -792,8 +967,18 @@ export default function EquipmentPage() {
                 <button
                   type="submit"
                   className="btn btn-primary"
+                  disabled={isSubmittingCategory}
                 >
-                  {editingCategory ? "Update Category" : "Add Category"}
+                  {isSubmittingCategory ? (
+                    <>
+                      <span className="loading-spinner"></span>
+                      {editingCategory ? "Updating..." : "Adding..."}
+                    </>
+                  ) : (
+                    <>
+                      {editingCategory ? "Update Category" : "Add Category"}
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -953,9 +1138,15 @@ export default function EquipmentPage() {
                   name="assignedTo"
                   value={equipmentFormData.assignedTo}
                   onChange={handleEquipmentInputChange}
-                  placeholder="e.g., Dr. Smith"
+                  placeholder="Auto-filled when laboratory is selected"
                   className="form-input"
                 />
+                <small className="form-help">
+                  {equipmentFormData.assignedTo 
+                    ? `Automatically assigned to laboratory manager: ${equipmentFormData.assignedTo}`
+                    : "Select a laboratory to automatically assign to its manager"
+                  }
+                </small>
               </div>
 
               <div className="form-group">
@@ -981,11 +1172,82 @@ export default function EquipmentPage() {
                 <button
                   type="submit"
                   className="btn btn-success"
+                  disabled={isSubmittingEquipment}
                 >
-                  {editingEquipment ? "Update Equipment" : "Add Equipment"}
+                  {isSubmittingEquipment ? (
+                    <>
+                      <span className="loading-spinner"></span>
+                      {editingEquipment ? "Updating..." : "Adding..."}
+                    </>
+                  ) : (
+                    <>
+                      {editingEquipment ? "Update Equipment" : "Add Equipment"}
+                    </>
+                  )}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="modal-overlay">
+          <div className="modal-content success-modal">
+            <div className="modal-header">
+              <div className="success-icon">✅</div>
+              <h2>Success!</h2>
+            </div>
+            <div className="modal-body">
+              <p>{feedbackMessage}</p>
+            </div>
+            <div className="modal-actions">
+              <button 
+                onClick={() => setShowSuccessModal(false)} 
+                className="btn btn-primary"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Modal */}
+      {showErrorModal && (
+        <div className="modal-overlay">
+          <div className="modal-content error-modal">
+            <div className="modal-header">
+              <div className="error-icon">⚠️</div>
+              <h2>Error</h2>
+            </div>
+            <div className="modal-body">
+              <p>{feedbackMessage}</p>
+            </div>
+            <div className="modal-actions">
+              <button 
+                onClick={() => setShowErrorModal(false)} 
+                className="btn btn-primary"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Modal */}
+      {(isSubmittingEquipment || isSubmittingCategory) && (
+        <div className="modal-overlay loading-overlay">
+          <div className="loading-modal">
+            <div className="loading-spinner-large"></div>
+            <p>
+              {isSubmittingEquipment 
+                ? (editingEquipment ? "Updating equipment..." : "Adding equipment...")
+                : (editingCategory ? "Updating category..." : "Adding category...")
+              }
+            </p>
           </div>
         </div>
       )}

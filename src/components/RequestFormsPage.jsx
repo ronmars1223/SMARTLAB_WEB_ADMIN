@@ -7,6 +7,7 @@ import "../CSS/RequestFormsPage.css";
 
 export default function RequestFormsPage() {
   const { isAdmin, getAssignedLaboratoryIds } = useAuth();
+  const [allRequests, setAllRequests] = useState([]);
   const [requests, setRequests] = useState([]);
   const [equipmentData, setEquipmentData] = useState([]);
   const [laboratories, setLaboratories] = useState([]);
@@ -93,48 +94,76 @@ export default function RequestFormsPage() {
           ...data[key]
         }));
         
-        // Filter requests based on user role and assigned laboratories
-        let filteredRequests = requestsList;
-        if (!isAdmin()) {
-          const assignedLabIds = getAssignedLaboratoryIds();
-          if (assignedLabIds && equipmentData.length > 0 && laboratories.length > 0) {
-            // Filter requests to only show those from assigned laboratories
-            filteredRequests = requestsList.filter(request => {
-              // Find the equipment that matches this request
-              const matchingEquipment = equipmentData.find(equipment => 
-                equipment.equipmentName === request.itemName || 
-                equipment.itemName === request.itemName ||
-                equipment.name === request.itemName ||
-                equipment.title === request.itemName
-              );
-              
-              if (matchingEquipment && matchingEquipment.labId) {
-                // Find the laboratory that matches this equipment's labId
-                const laboratory = laboratories.find(lab => lab.labId === matchingEquipment.labId);
-                
-                if (laboratory) {
-                  // Check if this laboratory is assigned to the current user
-                  return assignedLabIds.includes(laboratory.id);
-                }
-              }
-              
-              // If no matching equipment or laboratory found, don't show the request
-              return false;
-            });
-          }
-        }
-        
-        // Sort by creation date, newest first
-        filteredRequests.sort((a, b) => new Date(b.requestedAt || b.dateToBeUsed) - new Date(a.requestedAt || a.dateToBeUsed));
-        setRequests(filteredRequests);
+        setAllRequests(requestsList);
       } else {
-        setRequests([]);
+        setAllRequests([]);
       }
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
+
+  // Filter requests based on user role and assigned laboratories
+  useEffect(() => {
+    if (allRequests.length > 0) {
+      let filteredRequests = allRequests;
+      
+      if (!isAdmin()) {
+        const assignedLabIds = getAssignedLaboratoryIds();
+        if (assignedLabIds && equipmentData.length > 0 && laboratories.length > 0) {
+          console.log("Filtering requests for Lab Manager:", {
+            totalRequests: allRequests.length,
+            assignedLabIds: assignedLabIds,
+            equipmentCount: equipmentData.length,
+            laboratoriesCount: laboratories.length
+          });
+          
+          // Filter requests to only show those from assigned laboratories
+          filteredRequests = allRequests.filter(request => {
+            // Find the equipment that matches this request
+            const matchingEquipment = equipmentData.find(equipment => 
+              equipment.equipmentName === request.itemName || 
+              equipment.itemName === request.itemName ||
+              equipment.name === request.itemName ||
+              equipment.title === request.itemName
+            );
+            
+            if (matchingEquipment && matchingEquipment.labId) {
+              // Find the laboratory that matches this equipment's labId
+              const laboratory = laboratories.find(lab => lab.labId === matchingEquipment.labId);
+              
+              if (laboratory) {
+                // Check if this laboratory is assigned to the current user
+                const isAssigned = assignedLabIds.includes(laboratory.id);
+                console.log(`Request "${request.itemName}" from lab "${laboratory.labName}" (${laboratory.id}) - Assigned: ${isAssigned}`);
+                return isAssigned;
+              }
+            }
+            
+            // If no matching equipment or laboratory found, don't show the request
+            console.log(`Request "${request.itemName}" - No matching equipment/lab found`);
+            return false;
+          });
+          
+          console.log(`Filtered requests: ${filteredRequests.length} out of ${allRequests.length}`);
+        } else {
+          console.log("No assigned labs or missing data:", {
+            assignedLabIds,
+            equipmentCount: equipmentData.length,
+            laboratoriesCount: laboratories.length
+          });
+          filteredRequests = []; // Show no requests if we can't determine lab assignment
+        }
+      }
+      
+      // Sort by creation date, newest first
+      filteredRequests.sort((a, b) => new Date(b.requestedAt || b.dateToBeUsed) - new Date(a.requestedAt || a.dateToBeUsed));
+      setRequests(filteredRequests);
+    } else {
+      setRequests([]);
+    }
+  }, [allRequests, equipmentData, laboratories, isAdmin, getAssignedLaboratoryIds]);
 
   // Filter and sort requests
   const filteredRequests = requests
@@ -172,7 +201,13 @@ export default function RequestFormsPage() {
         reviewedBy: "Admin" // You can get actual admin name from auth
       });
       
-      // Update local state
+      // Update local state for both allRequests and filtered requests
+      setAllRequests(prev => prev.map(request => 
+        request.id === requestId 
+          ? { ...request, status: newStatus, updatedAt: new Date().toISOString() }
+          : request
+      ));
+      
       setRequests(prev => prev.map(request => 
         request.id === requestId 
           ? { ...request, status: newStatus, updatedAt: new Date().toISOString() }
