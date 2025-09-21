@@ -1,11 +1,15 @@
 // src/components/RequestFormsPage.jsx
 import React, { useState, useEffect } from "react";
-import { ref, onValue, update, remove } from "firebase/database";
+import { ref, onValue, update, remove, get } from "firebase/database";
 import { database } from "../firebase";
+import { useAuth } from "../contexts/AuthContext";
 import "../CSS/RequestFormsPage.css";
 
 export default function RequestFormsPage() {
+  const { isAdmin, getAssignedLaboratoryIds } = useAuth();
   const [requests, setRequests] = useState([]);
+  const [equipmentData, setEquipmentData] = useState([]);
+  const [laboratories, setLaboratories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterType, setFilterType] = useState("All");
@@ -20,8 +24,65 @@ export default function RequestFormsPage() {
   const statuses = ["pending", "approved", "rejected", "in_progress"];
   const requestTypes = ["Alcohol", "Laboratory Equipment", "Chemicals", "Other"];
 
+  // Load laboratories data
+  const loadLaboratories = async () => {
+    try {
+      const laboratoriesRef = ref(database, 'laboratories');
+      const snapshot = await get(laboratoriesRef);
+      
+      if (snapshot.exists()) {
+        const laboratoriesData = snapshot.val();
+        const laboratoriesList = Object.keys(laboratoriesData).map(key => ({
+          id: key,
+          ...laboratoriesData[key]
+        }));
+        setLaboratories(laboratoriesList);
+      }
+    } catch (error) {
+      console.error("Error loading laboratories:", error);
+    }
+  };
+
+  // Load equipment data for laboratory filtering
+  const loadEquipmentData = async () => {
+    try {
+      const categoriesRef = ref(database, 'equipment_categories');
+      const snapshot = await get(categoriesRef);
+      
+      if (snapshot.exists()) {
+        const categoriesData = snapshot.val();
+        const allEquipment = [];
+        
+        // Load equipment from each category
+        for (const categoryId in categoriesData) {
+          const equipmentsRef = ref(database, `equipment_categories/${categoryId}/equipments`);
+          const equipmentsSnapshot = await get(equipmentsRef);
+          
+          if (equipmentsSnapshot.exists()) {
+            const equipmentData = equipmentsSnapshot.val();
+            Object.keys(equipmentData).forEach(equipmentId => {
+              allEquipment.push({
+                id: equipmentId,
+                categoryId: categoryId,
+                categoryName: categoriesData[categoryId].title,
+                ...equipmentData[equipmentId]
+              });
+            });
+          }
+        }
+        
+        setEquipmentData(allEquipment);
+      }
+    } catch (error) {
+      console.error("Error loading equipment data:", error);
+    }
+  };
+
   // Load requests from Firebase
   useEffect(() => {
+    loadLaboratories();
+    loadEquipmentData();
+    
     const borrowRequestsRef = ref(database, 'borrow_requests');
     
     const unsubscribe = onValue(borrowRequestsRef, (snapshot) => {
@@ -31,9 +92,41 @@ export default function RequestFormsPage() {
           id: key,
           ...data[key]
         }));
+        
+        // Filter requests based on user role and assigned laboratories
+        let filteredRequests = requestsList;
+        if (!isAdmin()) {
+          const assignedLabIds = getAssignedLaboratoryIds();
+          if (assignedLabIds && equipmentData.length > 0 && laboratories.length > 0) {
+            // Filter requests to only show those from assigned laboratories
+            filteredRequests = requestsList.filter(request => {
+              // Find the equipment that matches this request
+              const matchingEquipment = equipmentData.find(equipment => 
+                equipment.equipmentName === request.itemName || 
+                equipment.itemName === request.itemName ||
+                equipment.name === request.itemName ||
+                equipment.title === request.itemName
+              );
+              
+              if (matchingEquipment && matchingEquipment.labId) {
+                // Find the laboratory that matches this equipment's labId
+                const laboratory = laboratories.find(lab => lab.labId === matchingEquipment.labId);
+                
+                if (laboratory) {
+                  // Check if this laboratory is assigned to the current user
+                  return assignedLabIds.includes(laboratory.id);
+                }
+              }
+              
+              // If no matching equipment or laboratory found, don't show the request
+              return false;
+            });
+          }
+        }
+        
         // Sort by creation date, newest first
-        requestsList.sort((a, b) => new Date(b.requestedAt || b.dateToBeUsed) - new Date(a.requestedAt || a.dateToBeUsed));
-        setRequests(requestsList);
+        filteredRequests.sort((a, b) => new Date(b.requestedAt || b.dateToBeUsed) - new Date(a.requestedAt || a.dateToBeUsed));
+        setRequests(filteredRequests);
       } else {
         setRequests([]);
       }

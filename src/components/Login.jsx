@@ -5,6 +5,7 @@
   import { getDatabase, ref, get, child } from "firebase/database";
   import "../CSS/Login.css";
   import { useNavigate } from "react-router-dom";
+  import { useAuth } from "../contexts/AuthContext";
 
   export default function Login() {
     const [email, setEmail] = useState("");
@@ -13,6 +14,7 @@
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState("");
     const navigate = useNavigate();
+    const { user, userRole } = useAuth();
 
     const handleLogin = async (e) => {
       e.preventDefault();
@@ -41,16 +43,17 @@
         if (snapshot.exists()) {
           const userData = snapshot.val();
 
-          if (userData.role === "admin") {
-            setSuccess("Logged in as admin!");
+          if (userData.role === "admin" || userData.role === "laboratory_manager") {
+            const roleDisplay = userData.role === "admin" ? "Admin" : "Laboratory Manager";
+            setSuccess(`Logged in as ${roleDisplay}!`);
             // Small delay to show success message
             setTimeout(() => {
               navigate("/dashboard");
             }, 1000);
           } else {
-            // ❌ Not admin - sign out and show error
+            // ❌ Invalid role - sign out and show error
             await signOut(auth);
-            setError("Access denied. Admin privileges required.");
+            setError("Access denied. Admin or Laboratory Manager privileges required.");
           }
         } else {
           await signOut(auth);

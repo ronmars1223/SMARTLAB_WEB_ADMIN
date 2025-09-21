@@ -1,71 +1,92 @@
 // src/components/Sidebar.js
 import React, { useState } from "react";
-import { signOut } from "firebase/auth";
-import { auth } from "../firebase";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import "../CSS/Sidebar.css";
 
 export default function Sidebar({ activeSection, onSectionChange }) {
   const navigate = useNavigate();
+  const { logout, userRole, isAdmin, isLaboratoryManager } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      navigate("/");
-    } catch (error) {
-      console.error("Logout error:", error);
-    }
+    await logout();
   };
 
-  const menuItems = [
+  const allMenuItems = [
     {
       id: "dashboard",
       label: "Dashboard",
-      icon: "🏠"
+      icon: "🏠",
+      roles: ["admin", "laboratory_manager"],
+      description: "Overview of system activity"
     },
     {
       id: "equipments",
       label: "Equipments", 
-      icon: "⚙️"
+      icon: "⚙️",
+      roles: ["admin", "laboratory_manager"],
+      description: "Manage laboratory equipment"
     },
     {
       id: "laboratories",
       label: "Laboratories",
-      icon: "🧪"
+      icon: "🧪",
+      roles: ["admin"], // Only admins can manage laboratories
+      description: "Manage laboratories and assignments"
     },
     {
       id: "request-forms",
       label: "Request Forms",
-      icon: "📋"
+      icon: "📋",
+      roles: ["admin", "laboratory_manager"],
+      description: "View and manage borrow requests"
     },
     {
       id: "history",
       label: "History",
-      icon: "📊"
+      icon: "📊",
+      roles: ["admin", "laboratory_manager"],
+      description: "View equipment usage history"
     },
     {
       id: "analytics",
       label: "Analytics",
-      icon: "📈"
+      icon: "📈",
+      roles: ["admin", "laboratory_manager"],
+      description: "View system analytics and reports"
     },
     {
       id: "users",
       label: "Users",
-      icon: "👥"
+      icon: "👥",
+      roles: ["admin"], // Only admins can manage users
+      description: "Manage user accounts and roles"
     },
     {
       id: "profile",
       label: "Profile",
-      icon: "👤"
+      icon: "👤",
+      roles: ["admin", "laboratory_manager"],
+      description: "Manage your profile settings"
     }
   ];
+
+  // Filter menu items based on user role
+  const menuItems = allMenuItems.filter(item => 
+    item.roles.includes(userRole)
+  );
+
+  // Get restricted items for visual feedback (optional)
+  const restrictedItems = allMenuItems.filter(item => 
+    !item.roles.includes(userRole)
+  );
 
   return (
     <div className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-header">
         <h2 className="sidebar-title">
-          Admin Panel
+          {userRole === 'admin' ? 'Admin Panel' : 'Lab Manager Panel'}
         </h2>
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
@@ -78,6 +99,7 @@ export default function Sidebar({ activeSection, onSectionChange }) {
       </div>
 
       <nav className="sidebar-nav" role="navigation">
+        {/* Available menu items */}
         {menuItems.map((item) => (
           <button
             key={item.id}
@@ -93,6 +115,32 @@ export default function Sidebar({ activeSection, onSectionChange }) {
             <span className="menu-item-label">{item.label}</span>
           </button>
         ))}
+
+        {/* Restricted menu items (shown as disabled) */}
+        {restrictedItems.length > 0 && !isCollapsed && (
+          <>
+            <div className="sidebar-divider"></div>
+            <div className="restricted-section">
+              <div className="restricted-label">Restricted Access</div>
+              {restrictedItems.map((item) => (
+                <button
+                  key={item.id}
+                  className="menu-item disabled tooltip"
+                  disabled
+                  data-tooltip={`${item.label} - ${userRole === 'laboratory_manager' ? 'Admin access required' : 'Access restricted'}`}
+                  title={`${item.label} - ${userRole === 'laboratory_manager' ? 'Admin access required' : 'Access restricted'}`}
+                  aria-label={`${item.label} - Access restricted`}
+                >
+                  <span className="menu-item-icon" role="img" aria-hidden="true">
+                    {item.icon}
+                  </span>
+                  <span className="menu-item-label">{item.label}</span>
+                  <span className="restricted-indicator" title="Access restricted">🔒</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </nav>
 
       <button

@@ -1353,3 +1353,28 @@
 .items-center {
   align-items: center;
 }
+
+/* Access Denied Styling */
+.access-denied {
+  text-align: center;
+  padding: 60px 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.access-denied h1 {
+  color: #ef4444;
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.access-denied p {
+  color: #6b7280;
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+}

@@ -2,11 +2,13 @@
 import React, { useState, useEffect } from "react";
 import { ref, push, onValue, remove, update } from "firebase/database";
 import { database } from "../firebase";
+import { useAuth } from "../contexts/AuthContext";
 // Import EquipmentMaintenance - adjust path as needed
 import EquipmentMaintenance from "./equipment/EquipmentMaintenance";
 import "../CSS/Equipment.css";
 
 export default function EquipmentPage() {
+  const { isAdmin, getAssignedLaboratoryIds } = useAuth();
   const [categories, setCategories] = useState([]);
   const [laboratories, setLaboratories] = useState([]);
   const [equipments, setEquipments] = useState([]);
@@ -111,7 +113,22 @@ export default function EquipmentPage() {
             id: key,
             ...data[key]
           }));
-          setEquipments(equipmentList);
+          
+          // Filter equipment based on user role and assigned laboratories
+          let filteredEquipment = equipmentList;
+          if (!isAdmin()) {
+            const assignedLabIds = getAssignedLaboratoryIds();
+            if (assignedLabIds) {
+              // Filter equipment to only show those from assigned laboratories
+              filteredEquipment = equipmentList.filter(equipment => {
+                // Find the laboratory for this equipment
+                const lab = laboratories.find(l => l.labId === equipment.labId);
+                return lab && assignedLabIds.includes(lab.id);
+              });
+            }
+          }
+          
+          setEquipments(filteredEquipment);
         } else {
           setEquipments([]);
         }

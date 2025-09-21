@@ -2,9 +2,11 @@
 import React, { useState, useEffect } from "react";
 import { ref, onValue, get } from "firebase/database";
 import { database } from "../firebase";
+import { useAuth } from "../contexts/AuthContext";
 import "../CSS/Analytics.css";
 
 export default function Analytics() {
+  const { isAdmin, getAssignedLaboratoryIds } = useAuth();
   const [analyticsData, setAnalyticsData] = useState({
     equipmentStats: {},
     borrowingTrends: [],
@@ -30,6 +32,18 @@ export default function Analytics() {
     try {
       console.log("Categories loaded:", Object.keys(categories).length);
       
+      // Load laboratories for filtering
+      const laboratoriesRef = ref(database, 'laboratories');
+      const labsSnapshot = await get(laboratoriesRef);
+      let laboratories = [];
+      if (labsSnapshot.exists()) {
+        const labsData = labsSnapshot.val();
+        laboratories = Object.keys(labsData).map(key => ({
+          id: key,
+          ...labsData[key]
+        }));
+      }
+      
       // Load equipment from each category
       const equipmentPromises = Object.keys(categories).map(async (categoryId) => {
         const equipmentsRef = ref(database, `equipment_categories/${categoryId}/equipments`);
@@ -45,8 +59,21 @@ export default function Analytics() {
             categoryName: categories[categoryId].title,
             ...equipmentData[equipmentId]
           }));
-          console.log(`Category ${categoryId} processed equipment:`, categoryEquipment.length);
-          return categoryEquipment;
+          
+          // Filter equipment based on user role and assigned laboratories
+          let filteredEquipment = categoryEquipment;
+          if (!isAdmin()) {
+            const assignedLabIds = getAssignedLaboratoryIds();
+            if (assignedLabIds) {
+              filteredEquipment = categoryEquipment.filter(equipment => {
+                const lab = laboratories.find(l => l.labId === equipment.labId);
+                return lab && assignedLabIds.includes(lab.id);
+              });
+            }
+          }
+          
+          console.log(`Category ${categoryId} processed equipment:`, filteredEquipment.length);
+          return filteredEquipment;
         }
         return [];
       });

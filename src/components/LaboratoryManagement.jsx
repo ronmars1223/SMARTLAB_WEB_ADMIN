@@ -2,9 +2,11 @@
 import React, { useState, useEffect } from "react";
 import { ref, push, onValue, remove, update, get } from "firebase/database";
 import { database } from "../firebase";
+import { useAuth } from "../contexts/AuthContext";
 import "../CSS/LaboratoryManagement.css";
 
 export default function LaboratoryManagement() {
+  const { isAdmin, isLaboratoryManager, assignedLaboratories, canAccessLaboratory } = useAuth();
   const [laboratories, setLaboratories] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,7 +24,6 @@ export default function LaboratoryManagement() {
   const [successMessage, setSuccessMessage] = useState("");
 
   const [laboratoryFormData, setLaboratoryFormData] = useState({
-    labId: "",
     labName: "",
     description: "",
     location: "",
@@ -35,22 +36,50 @@ export default function LaboratoryManagement() {
   useEffect(() => {
     fetchLaboratories();
     fetchUsers();
-  }, []);
+  }, [isAdmin, isLaboratoryManager, assignedLaboratories]);
 
   const fetchLaboratories = () => {
     try {
       setLoading(true);
       const laboratoriesRef = ref(database, 'laboratories');
       
+      console.log("Fetching laboratories from database...");
+      console.log("isAdmin():", isAdmin());
+      console.log("isLaboratoryManager():", isLaboratoryManager());
+      console.log("Current user role:", isAdmin() ? 'admin' : isLaboratoryManager() ? 'laboratory_manager' : 'unknown');
+      console.log("Assigned laboratories:", assignedLaboratories);
+      
       onValue(laboratoriesRef, (snapshot) => {
         const data = snapshot.val();
+        console.log("Raw laboratories data from database:", data);
+        
         if (data) {
           const laboratoryList = Object.keys(data).map(key => ({
             id: key,
             ...data[key]
           }));
-          setLaboratories(laboratoryList);
+          
+          console.log("Processed laboratory list:", laboratoryList);
+          console.log("Total laboratories found:", laboratoryList.length);
+          
+          // Filter laboratories based on user role
+          let filteredLaboratories = laboratoryList;
+          if (isLaboratoryManager() && !isAdmin()) {
+            console.log("Filtering for Laboratory Manager. Assigned labs:", assignedLaboratories);
+            // Laboratory managers can only see their assigned laboratories
+            const assignedLabIds = assignedLaboratories.map(lab => lab.id);
+            filteredLaboratories = laboratoryList.filter(lab => 
+              assignedLabIds.includes(lab.id)
+            );
+            console.log("Filtered laboratories for Lab Manager:", filteredLaboratories);
+          } else {
+            console.log("Admin user - showing all laboratories");
+          }
+          
+          console.log("Final filtered laboratories to display:", filteredLaboratories);
+          setLaboratories(filteredLaboratories);
         } else {
+          console.log("No laboratories data found in database");
           setLaboratories([]);
         }
         setLoading(false);
@@ -70,11 +99,11 @@ export default function LaboratoryManagement() {
         const usersData = snapshot.val();
         const fetchedUsers = [];
         
-        // Convert the object to array with IDs and filter for teachers/admins only
+        // Convert the object to array with IDs and filter for admins/laboratory managers only
         Object.keys(usersData).forEach((userId) => {
           const userData = usersData[userId];
-          // Only include teachers and admins as potential lab managers
-          if (userData.role === 'teacher' || userData.role === 'admin') {
+          // Only include admins and laboratory managers as potential lab managers
+          if (userData.role === 'admin' || userData.role === 'laboratory_manager') {
             fetchedUsers.push({
               id: userId,
               name: userData.name || "Unknown",
@@ -109,28 +138,48 @@ export default function LaboratoryManagement() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!laboratoryFormData.labId.trim() || !laboratoryFormData.labName.trim()) {
-      alert("Please fill in required fields (Lab ID and Lab Name)");
+    if (!laboratoryFormData.labName.trim()) {
+      alert("Please fill in required fields (Lab Name)");
       return;
     }
+
+    // Generate Lab ID automatically
+    const generatedLabId = editingLaboratory ? editingLaboratory.labId : generateNextLabId();
+    
+    const submissionData = {
+      ...laboratoryFormData,
+      labId: generatedLabId
+    };
+
+    console.log("Submitting laboratory data:", submissionData);
 
     try {
       if (editingLaboratory) {
         // Update existing laboratory
+        console.log("Updating existing laboratory:", editingLaboratory.id);
         const laboratoryRef = ref(database, `laboratories/${editingLaboratory.id}`);
         await update(laboratoryRef, {
-          ...laboratoryFormData,
+          ...submissionData,
           updatedAt: new Date().toISOString()
         });
+        console.log("Laboratory updated successfully");
         setSuccessMessage("Laboratory updated successfully!");
       } else {
         // Add new laboratory
-        const laboratoriesRef = ref(database, 'laboratories');
-        await push(laboratoriesRef, {
-          ...laboratoryFormData,
+        console.log("Creating new laboratory with data:", {
+          ...submissionData,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         });
+        
+        const laboratoriesRef = ref(database, 'laboratories');
+        const newLaboratoryRef = await push(laboratoriesRef, {
+          ...submissionData,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+        
+        console.log("Laboratory created successfully with key:", newLaboratoryRef.key);
         setSuccessMessage("Laboratory added successfully!");
       }
       
@@ -139,14 +188,18 @@ export default function LaboratoryManagement() {
       setTimeout(() => setShowSuccessModal(false), 3000);
     } catch (error) {
       console.error("Error saving laboratory:", error);
-      alert("Error saving laboratory. Please try again.");
+      console.error("Error details:", {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      });
+      alert(`Error saving laboratory: ${error.message}. Please try again.`);
     }
   };
 
   const handleEdit = (laboratory) => {
     setEditingLaboratory(laboratory);
     setLaboratoryFormData({
-      labId: laboratory.labId || "",
       labName: laboratory.labName || "",
       description: laboratory.description || "",
       location: laboratory.location || "",
@@ -182,7 +235,6 @@ export default function LaboratoryManagement() {
 
   const resetForm = () => {
     setLaboratoryFormData({
-      labId: "",
       labName: "",
       description: "",
       location: "",
@@ -192,6 +244,29 @@ export default function LaboratoryManagement() {
     });
     setShowAddForm(false);
     setEditingLaboratory(null);
+  };
+
+
+  // Generate next Lab ID automatically
+  const generateNextLabId = () => {
+    if (laboratories.length === 0) {
+      return "LAB001";
+    }
+    
+    // Extract existing Lab IDs and find the highest number
+    const existingIds = laboratories
+      .map(lab => lab.labId)
+      .filter(id => id && id.startsWith("LAB"))
+      .map(id => {
+        const number = parseInt(id.replace("LAB", ""));
+        return isNaN(number) ? 0 : number;
+      });
+    
+    const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
+    const nextNumber = maxId + 1;
+    
+    // Format with leading zeros (LAB001, LAB002, etc.)
+    return `LAB${nextNumber.toString().padStart(3, '0')}`;
   };
 
 
@@ -300,13 +375,15 @@ export default function LaboratoryManagement() {
           <h1>Laboratory Management</h1>
           <p>Manage laboratory information, capacity, and supervisors</p>
         </div>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="btn btn-primary add-laboratory-btn"
-        >
-          <span className="btn-icon">+</span>
-          Add Laboratory
-        </button>
+        {isAdmin() && (
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="btn btn-primary add-laboratory-btn"
+          >
+            <span className="btn-icon">+</span>
+            Add Laboratory
+          </button>
+        )}
       </div>
 
       {/* Search and Filter */}
@@ -458,20 +535,24 @@ export default function LaboratoryManagement() {
                       </td>
                     <td className="center">
                       <div className="table-actions">
-                        <button
-                          onClick={() => handleEdit(laboratory)}
-                          className="btn-edit"
-                          title="Edit laboratory"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={() => confirmDelete(laboratory)}
-                          className="btn-delete"
-                          title="Delete laboratory"
-                        >
-                          🗑️
-                        </button>
+                        {isAdmin() && (
+                          <>
+                            <button
+                              onClick={() => handleEdit(laboratory)}
+                              className="btn-edit"
+                              title="Edit laboratory"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={() => confirmDelete(laboratory)}
+                              className="btn-delete"
+                              title="Delete laboratory"
+                            >
+                              🗑️
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                     </tr>
@@ -511,17 +592,14 @@ export default function LaboratoryManagement() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">
-                    Lab ID *
+                    Lab ID
                   </label>
-                  <input
-                    type="text"
-                    name="labId"
-                    value={laboratoryFormData.labId}
-                    onChange={handleInputChange}
-                    required
-                    className="form-input"
-                    placeholder="e.g., LAB001"
-                  />
+                  <div className="form-input-display">
+                    {editingLaboratory ? editingLaboratory.labId : generateNextLabId()}
+                  </div>
+                  <small className="form-help">
+                    Lab ID is automatically generated
+                  </small>
                 </div>
                 <div className="form-group">
                   <label className="form-label">

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { ref, push, onValue, remove, update } from "firebase/database";
 import { database } from "../firebase";
+import { useAuth } from "../contexts/AuthContext";
 import Sidebar from "./Sidebar";
 import EquipmentPage from "./EquipmentPage";
 import UserManagement from "./UserManagement";
@@ -13,6 +14,7 @@ import LaboratoryManagement from "./LaboratoryManagement";
 import "../CSS/Dashboard.css";
 
 export default function Dashboard() {
+  const { user, userRole, isAdmin, isLaboratoryManager } = useAuth();
   const [activeSection, setActiveSection] = useState("dashboard");
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
@@ -569,7 +571,17 @@ export default function Dashboard() {
         return <HistoryPage />;
       
       case "users":
-        return <UserManagement />;
+        if (!isAdmin()) {
+          return (
+            <div className="dashboard-content-centered">
+              <div className="access-denied">
+                <h1>Access Denied</h1>
+                <p>You don't have permission to access this section. Admin privileges required.</p>
+              </div>
+            </div>
+          );
+        }
+        return <UserManagement onRedirectToUsers={() => setActiveSection("users")} />;
       
       case "analytics":
         return <Analytics />;

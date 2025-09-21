@@ -1,33 +1,50 @@
 // src/components/UserManagement.js
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { 
   ref, 
   get, 
-  update
+  update,
+  push,
+  set
 } from "firebase/database";
-import { database } from "../firebase";
+import { 
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut
+} from "firebase/auth";
+import { database, auth } from "../firebase";
+import { useAuth } from "../contexts/AuthContext";
 import "../CSS/UserManagement.css";
 
-export default function UserManagement() {
+export default function UserManagement({ onRedirectToUsers }) {
+  const navigate = useNavigate();
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
   const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState("asc");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [emailValidation, setEmailValidation] = useState({ status: '', message: '' });
 
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    role: "teacher",
+    password: "",
+    role: "admin",
     profile_setup: true
   });
 
-  const roles = ["teacher", "student"];
+  const roles = ["admin", "laboratory_manager"];
   const statuses = ["Active", "Inactive", "Pending"];
 
   // Fetch users from Firebase Realtime Database
@@ -111,52 +128,198 @@ export default function UserManagement() {
       ...prev,
       [name]: value
     }));
+
+    // Clear email validation when user starts typing
+    if (name === 'email') {
+      setEmailValidation({ status: '', message: '' });
+    }
+  };
+
+  const handleEmailBlur = async () => {
+    if (isCreatingUser && formData.email && formData.email.includes('@')) {
+      setEmailValidation({ status: 'checking', message: 'Checking email availability...' });
+      
+      try {
+        const emailExists = await checkEmailExists(formData.email);
+        if (emailExists) {
+          setEmailValidation({ 
+            status: 'error', 
+            message: 'This email is already registered' 
+          });
+        } else {
+          setEmailValidation({ 
+            status: 'success', 
+            message: 'Email is available' 
+          });
+        }
+      } catch (error) {
+        setEmailValidation({ 
+          status: 'error', 
+          message: 'Unable to verify email' 
+        });
+      }
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+    setSuccess("");
     
     try {
-      // Update existing user only
-      const userRef = ref(database, `users/${editingUser.id}`);
-      await update(userRef, {
-        name: formData.name,
-        email: formData.email,
-        role: formData.role,
-        profile_setup: formData.profile_setup,
-        updatedAt: Date.now()
-      });
+      if (isCreatingUser) {
+        // Check if email already exists before creating user
+        const emailExists = await checkEmailExists(formData.email);
+        if (emailExists) {
+          setError('This email is already registered. Please use a different email address.');
+          return;
+        }
+
+        // Create new user with Firebase Authentication
+        // Store admin session info before creating user
+        const adminEmail = currentUser.email;
+        const adminId = currentUser.uid;
+        
+        // Create the new user (this will temporarily sign them in)
+        const userCredential = await createUserWithEmailAndPassword(
+          auth, 
+          formData.email, 
+          formData.password
+        );
+        
+        const newUser = userCredential.user;
+        
+        // Save user data to Realtime Database
+        const userRef = ref(database, `users/${newUser.uid}`);
+        await set(userRef, {
+          name: formData.name,
+          email: formData.email,
+          role: formData.role,
+          profile_setup: formData.profile_setup,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+        
+        // Send password reset email to let user set their own password
+        await sendPasswordResetEmail(auth, formData.email);
+        
+        // Sign out the newly created user
+        await signOut(auth);
+        
+        // Try to restore admin session by navigating to login
+        // The AuthContext will handle the session restoration
+        setSuccess(`User ${formData.name} created successfully! Redirecting to login...`);
+        
+        setTimeout(() => {
+          closeModal();
+          // Navigate to login page where admin can log back in
+          navigate('/');
+        }, 2000);
+        
+      } else {
+        // Update existing user
+        const userRef = ref(database, `users/${editingUser.id}`);
+        await update(userRef, {
+          name: formData.name,
+          email: formData.email,
+          role: formData.role,
+          profile_setup: formData.profile_setup,
+          updatedAt: Date.now()
+        });
+        
+        // Update local state
+        setUsers(prev => prev.map(user => 
+          user.id === editingUser.id 
+            ? { 
+                ...user, 
+                name: formData.name,
+                email: formData.email,
+                role: formData.role,
+                profile_setup: formData.profile_setup,
+                status: formData.profile_setup ? "Active" : "Pending"
+              }
+            : user
+        ));
+        
+        setSuccess(`User ${formData.name} updated successfully!`);
+        
+        // Close modal and reset form after a short delay for updates
+        setTimeout(() => {
+          closeModal();
+        }, 1500);
+      }
       
-      // Update local state
-      setUsers(prev => prev.map(user => 
-        user.id === editingUser.id 
-          ? { 
-              ...user, 
-              name: formData.name,
-              email: formData.email,
-              role: formData.role,
-              profile_setup: formData.profile_setup,
-              status: formData.profile_setup ? "Active" : "Pending"
-            }
-          : user
-      ));
-      
-      closeModal();
-      alert("User updated successfully!");
     } catch (error) {
-      console.error("Error saving user:", error);
-      alert("Error saving user. Please try again.");
+      console.error("Error managing user:", error);
+      setError(getErrorMessage(error.code));
+    }
+  };
+
+  const checkEmailExists = async (email) => {
+    try {
+      const usersRef = ref(database, 'users');
+      const snapshot = await get(usersRef);
+      
+      if (snapshot.exists()) {
+        const usersData = snapshot.val();
+        // Check if any user has this email
+        for (const userId in usersData) {
+          if (usersData[userId].email === email) {
+            return true; // Email already exists
+          }
+        }
+      }
+      return false; // Email doesn't exist
+    } catch (error) {
+      console.error('Error checking email:', error);
+      return false; // Assume email doesn't exist if check fails
+    }
+  };
+
+  const getErrorMessage = (errorCode) => {
+    switch (errorCode) {
+      case 'auth/email-already-in-use':
+        return 'This email is already registered. Please use a different email address.';
+      case 'auth/invalid-email':
+        return 'Please enter a valid email address.';
+      case 'auth/weak-password':
+        return 'Password should be at least 6 characters.';
+      case 'auth/operation-not-allowed':
+        return 'Email/password accounts are not enabled.';
+      case 'auth/network-request-failed':
+        return 'Network error. Please check your connection and try again.';
+      case 'auth/too-many-requests':
+        return 'Too many requests. Please wait a moment and try again.';
+      default:
+        return 'An error occurred. Please try again.';
     }
   };
 
   const handleEdit = (user) => {
     setEditingUser(user);
+    setIsCreatingUser(false);
     setFormData({
       name: user.name,
       email: user.email,
+      password: "",
       role: user.role,
       profile_setup: user.profile_setup
     });
+    setIsModalOpen(true);
+  };
+
+  const handleCreateUser = () => {
+    setEditingUser(null);
+    setIsCreatingUser(true);
+    setFormData({
+      name: "",
+      email: "",
+      password: "",
+      role: "laboratory_manager",
+      profile_setup: true
+    });
+    setError("");
+    setSuccess("");
     setIsModalOpen(true);
   };
 
@@ -164,12 +327,17 @@ export default function UserManagement() {
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingUser(null);
+    setIsCreatingUser(false);
     setFormData({
       name: "",
       email: "",
-      role: "teacher",
+      password: "",
+      role: "admin",
       profile_setup: true
     });
+    setError("");
+    setSuccess("");
+    setEmailValidation({ status: '', message: '' });
   };
 
   const handleSort = (field) => {
@@ -199,6 +367,15 @@ export default function UserManagement() {
         <div className="header-left">
           <h1>User Management</h1>
           <p>Manage user accounts, roles, and permissions ({users.length} users)</p>
+        </div>
+        <div className="header-right">
+          <button 
+            onClick={handleCreateUser}
+            className="btn btn-primary"
+          >
+            <span className="btn-icon">+</span>
+            Create User
+          </button>
         </div>
       </div>
 
@@ -317,11 +494,24 @@ export default function UserManagement() {
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Edit User</h2>
+              <h2>{isCreatingUser ? 'Create New User' : 'Edit User'}</h2>
               <button className="modal-close" onClick={closeModal}>×</button>
             </div>
             
             <form onSubmit={handleSubmit} className="user-form">
+              {error && (
+                <div className="alert alert-error">
+                  <span className="alert-icon">⚠️</span>
+                  {error}
+                </div>
+              )}
+              
+              {success && (
+                <div className="alert alert-success">
+                  <span className="alert-icon">✅</span>
+                  {success}
+                </div>
+              )}
               <div className="form-group">
                 <label className="form-label">Full Name *</label>
                 <input
@@ -342,11 +532,39 @@ export default function UserManagement() {
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  className="form-input"
+                  onBlur={handleEmailBlur}
+                  className={`form-input ${emailValidation.status === 'error' ? 'input-error' : emailValidation.status === 'success' ? 'input-success' : ''}`}
                   required
                   placeholder="Enter email address"
                 />
+                {emailValidation.message && (
+                  <div className={`form-validation ${emailValidation.status}`}>
+                    {emailValidation.status === 'checking' && <span className="validation-icon">⏳</span>}
+                    {emailValidation.status === 'error' && <span className="validation-icon">❌</span>}
+                    {emailValidation.status === 'success' && <span className="validation-icon">✅</span>}
+                    {emailValidation.message}
+                  </div>
+                )}
               </div>
+
+              {isCreatingUser && (
+                <div className="form-group">
+                  <label className="form-label">Password *</label>
+                  <input
+                    type="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    className="form-input"
+                    required
+                    minLength="6"
+                    placeholder="Enter password (min 6 characters)"
+                  />
+                  <small className="form-help">
+                    A password reset email will be sent to the user to set their own password.
+                  </small>
+                </div>
+              )}
               
               <div className="form-row">
                 <div className="form-group">
@@ -382,7 +600,7 @@ export default function UserManagement() {
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-primary">
-                  Update User
+                  {isCreatingUser ? 'Create User' : 'Update User'}
                 </button>
               </div>
             </form>
