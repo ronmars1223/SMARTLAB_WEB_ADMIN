@@ -312,7 +312,7 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
         <div className="empty-state">
           <div className="empty-icon">🔧</div>
           <h3 className="empty-title">Select a Category</h3>
-          <p className="empty-message">Choose a category to view and manage equipment maintenance.</p>
+          <p className="empty-message">Please select a category from individual equipment first to view related details.</p>
         </div>
       </div>
     );

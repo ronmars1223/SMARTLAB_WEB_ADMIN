@@ -20,8 +20,6 @@ export default function EquipmentPage() {
   
   const [categoryFormData, setCategoryFormData] = useState({
     title: "",
-    icon: "",
-    colorHex: "",
     description: ""
   });
 
@@ -100,16 +98,6 @@ export default function EquipmentPage() {
 
   const handleCategoryInputChange = (e) => {
     const { name, value } = e.target;
-    
-    // Validate hex color
-    if (name === 'colorHex') {
-      const cleanValue = value.replace('#', '').replace(/[^0-9a-fA-F]/g, '').substring(0, 6);
-      setCategoryFormData(prev => ({
-        ...prev,
-        [name]: cleanValue
-      }));
-      return;
-    }
     
     setCategoryFormData(prev => ({
       ...prev,
@@ -223,8 +211,6 @@ export default function EquipmentPage() {
     setEditingCategory(category);
     setCategoryFormData({
       title: category.title || "",
-      icon: category.icon || "",
-      colorHex: category.colorHex || "",
       description: category.description || ""
     });
     setShowAddCategoryForm(true);
@@ -282,8 +268,6 @@ export default function EquipmentPage() {
   const resetCategoryForm = () => {
     setCategoryFormData({
       title: "",
-      icon: "",
-      colorHex: "",
       description: ""
     });
     setShowAddCategoryForm(false);
@@ -718,38 +702,6 @@ export default function EquipmentPage() {
                 />
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Icon (Emoji)</label>
-                  <input
-                    type="text"
-                    name="icon"
-                    value={categoryFormData.icon}
-                    onChange={handleCategoryInputChange}
-                    placeholder="🧪"
-                    className="form-input"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Color (Hex)</label>
-                  <div className="color-input-wrapper">
-                    <input
-                      type="text"
-                      name="colorHex"
-                      value={categoryFormData.colorHex}
-                      onChange={handleCategoryInputChange}
-                      placeholder="14b8a6"
-                      className="form-input color-input"
-                    />
-                    <div 
-                      className="color-preview"
-                      style={{ 
-                        backgroundColor: categoryFormData.colorHex ? `#${categoryFormData.colorHex}` : "#14b8a6" 
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
 
               <div className="form-group">
                 <label className="form-label">Description</label>
