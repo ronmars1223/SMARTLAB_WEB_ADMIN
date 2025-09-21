@@ -309,40 +309,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="quick-actions">
-              <h3>Quick Actions</h3>
-              <div className="action-buttons">
-                <button 
-                  className="action-btn primary"
-                  onClick={() => setActiveSection('equipments')}
-                >
-                  <span className="btn-icon">⚙️</span>
-                  Manage Equipment
-                </button>
-                <button 
-                  className="action-btn success"
-                  onClick={() => setActiveSection('request-forms')}
-                >
-                  <span className="btn-icon">📋</span>
-                  View Requests
-                </button>
-                <button 
-                  className="action-btn info"
-                  onClick={() => setActiveSection('history')}
-                >
-                  <span className="btn-icon">📊</span>
-                  View History
-                </button>
-                <button 
-                  className="action-btn warning"
-                  onClick={() => setActiveSection('users')}
-                >
-                  <span className="btn-icon">👥</span>
-                  Manage Users
-                </button>
-              </div>
-            </div>
 
             {/* Announcements Section */}
             <div className="announcements-section">
