@@ -217,6 +217,31 @@
   box-shadow: 0 2px 8px rgba(42, 165, 157, 0.3);
 }
 
+/* Course Info Styles */
+.course-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.course-name {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 0.9rem;
+}
+
+.course-details {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.text-muted {
+  color: #9ca3af;
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
 /* Badge Styles */
 .role-badge {
   padding: 0.25rem 0.75rem;
@@ -248,6 +273,11 @@
 }
 
 .role-student {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.role-laboratory_manager {
   background-color: #43b091;
   color: white;
 }

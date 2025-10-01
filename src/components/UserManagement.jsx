@@ -41,10 +41,13 @@ export default function UserManagement({ onRedirectToUsers }) {
     email: "",
     password: "",
     role: "admin",
-    profile_setup: true
+    profile_setup: true,
+    course: "",
+    yearLevel: "",
+    section: ""
   });
 
-  const roles = ["admin", "laboratory_manager"];
+  const roles = ["admin", "laboratory_manager", "student"];
   const statuses = ["Active", "Inactive", "Pending"];
 
   // Fetch users from Firebase Realtime Database
@@ -69,6 +72,9 @@ export default function UserManagement({ onRedirectToUsers }) {
             status: userData.profile_setup ? "Active" : "Pending",
             createdAt: userData.createdAt ? new Date(userData.createdAt).toLocaleDateString() : "Unknown",
             profile_setup: userData.profile_setup || false,
+            course: userData.course || "",
+            yearLevel: userData.yearLevel || "",
+            section: userData.section || "",
             ...userData
           });
         });
@@ -196,6 +202,9 @@ export default function UserManagement({ onRedirectToUsers }) {
           email: formData.email,
           role: formData.role,
           profile_setup: formData.profile_setup,
+          course: formData.course,
+          yearLevel: formData.yearLevel,
+          section: formData.section,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
@@ -224,6 +233,9 @@ export default function UserManagement({ onRedirectToUsers }) {
           email: formData.email,
           role: formData.role,
           profile_setup: formData.profile_setup,
+          course: formData.course,
+          yearLevel: formData.yearLevel,
+          section: formData.section,
           updatedAt: Date.now()
         });
         
@@ -236,6 +248,9 @@ export default function UserManagement({ onRedirectToUsers }) {
                 email: formData.email,
                 role: formData.role,
                 profile_setup: formData.profile_setup,
+                course: formData.course,
+                yearLevel: formData.yearLevel,
+                section: formData.section,
                 status: formData.profile_setup ? "Active" : "Pending"
               }
             : user
@@ -303,7 +318,10 @@ export default function UserManagement({ onRedirectToUsers }) {
       email: user.email,
       password: "",
       role: user.role,
-      profile_setup: user.profile_setup
+      profile_setup: user.profile_setup,
+      course: user.course || "",
+      yearLevel: user.yearLevel || "",
+      section: user.section || ""
     });
     setIsModalOpen(true);
   };
@@ -315,8 +333,11 @@ export default function UserManagement({ onRedirectToUsers }) {
       name: "",
       email: "",
       password: "",
-      role: "laboratory_manager",
-      profile_setup: true
+      role: "student",
+      profile_setup: true,
+      course: "",
+      yearLevel: "",
+      section: ""
     });
     setError("");
     setSuccess("");
@@ -333,7 +354,10 @@ export default function UserManagement({ onRedirectToUsers }) {
       email: "",
       password: "",
       role: "admin",
-      profile_setup: true
+      profile_setup: true,
+      course: "",
+      yearLevel: "",
+      section: ""
     });
     setError("");
     setSuccess("");
@@ -433,8 +457,8 @@ export default function UserManagement({ onRedirectToUsers }) {
               <th onClick={() => handleSort("status")} className="sortable">
                 Status {getSortIcon("status")}
               </th>
-              <th onClick={() => handleSort("createdAt")} className="sortable">
-                Date Joined {getSortIcon("createdAt")}
+              <th onClick={() => handleSort("course")} className="sortable">
+                Course {getSortIcon("course")}
               </th>
               <th>Profile Setup</th>
               <th>Actions</th>
@@ -460,7 +484,19 @@ export default function UserManagement({ onRedirectToUsers }) {
                     {user.status}
                   </span>
                 </td>
-                <td>{user.createdAt}</td>
+                <td>
+                  {user.course || user.yearLevel || user.section ? (
+                    <div className="course-info">
+                      <div className="course-name">
+                        {user.course && user.yearLevel && user.section 
+                          ? `${user.course} ${user.yearLevel}-${user.section}`
+                          : user.course || 'N/A'}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-muted">Not specified</span>
+                  )}
+                </td>
                 <td>
                   <span className={`profile-badge ${user.profile_setup ? 'setup-complete' : 'setup-pending'}`}>
                     {user.profile_setup ? '✅ Complete' : '⏳ Pending'}
@@ -592,6 +628,49 @@ export default function UserManagement({ onRedirectToUsers }) {
                     <option value={true}>Complete</option>
                     <option value={false}>Pending</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Course</label>
+                <input
+                  type="text"
+                  name="course"
+                  value={formData.course}
+                  onChange={handleInputChange}
+                  className="form-input"
+                  placeholder="e.g., Computer Science, Engineering"
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Year Level</label>
+                  <select
+                    name="yearLevel"
+                    value={formData.yearLevel}
+                    onChange={handleInputChange}
+                    className="form-select"
+                  >
+                    <option value="">Select Year Level</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Section</label>
+                  <input
+                    type="text"
+                    name="section"
+                    value={formData.section}
+                    onChange={handleInputChange}
+                    className="form-input"
+                    placeholder="e.g., A, B, C"
+                  />
                 </div>
               </div>
               
