@@ -114,22 +114,28 @@ export default function HistoryPage() {
 
           // Create entry for status updates if updatedAt exists
           if (request.updatedAt && request.updatedAt !== request.requestedAt) {
+            const isReturned = request.status === "completed" || request.status === "returned";
+            const condition = isReturned && request.returnDetails 
+              ? `${request.returnDetails.condition === "good" ? "Good" : request.returnDetails.condition === "damaged" ? "Damaged" : "Lost/Missing"} condition${request.returnDetails.delayReason === "late" ? " (Late return)" : request.returnDetails.delayReason === "early" ? " (Early return)" : ""}`
+              : isReturned ? "Cleaned and recalibrated" : "Good condition";
+            
             historyList.push({
               id: `${key}_updated`,
-              action: request.status === "completed" ? "Item Returned" : "Status Updated",
+              action: isReturned ? "Item Returned" : "Status Updated",
               equipmentName: request.itemName,
               borrower: request.adviserName,
-              status: request.status === "completed" ? "Returned" : request.status,
+              status: isReturned ? "Returned" : request.status,
               releasedDate: request.requestedAt,
-              returnDate: request.status === "completed" ? request.updatedAt : request.dateToReturn,
-              condition: request.status === "completed" ? "Cleaned and recalibrated" : "Good condition",
+              returnDate: isReturned ? (request.returnedAt || request.updatedAt) : request.dateToReturn,
+              condition: condition,
               timestamp: request.updatedAt,
               details: {
                 requestId: key,
                 originalRequest: request,
                 action: "status_updated",
                 newStatus: request.status,
-                reviewedBy: request.reviewedBy
+                reviewedBy: request.reviewedBy,
+                returnDetails: request.returnDetails || null
               }
             });
           }

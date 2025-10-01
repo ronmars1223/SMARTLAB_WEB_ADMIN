@@ -1299,6 +1299,94 @@
   outline-offset: 2px;
 }
 
+/* Return Modal Styles */
+.return-modal {
+  max-width: 500px;
+}
+
+.return-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.return-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.return-form .form-group label {
+  font-weight: 600;
+  color: #2d3748;
+  font-size: 0.9rem;
+}
+
+.return-form .form-select {
+  padding: 12px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: white;
+  transition: all 0.3s ease;
+}
+
+.return-form .form-select:focus {
+  outline: none;
+  border-color: #2aa59d;
+  box-shadow: 0 0 0 3px rgba(42, 165, 157, 0.1);
+}
+
+.return-form .form-textarea {
+  padding: 12px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: white;
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+  transition: all 0.3s ease;
+}
+
+.return-form .form-textarea:focus {
+  outline: none;
+  border-color: #2aa59d;
+  box-shadow: 0 0 0 3px rgba(42, 165, 157, 0.1);
+}
+
+/* Status badge for returned items */
+.status-returned {
+  background: linear-gradient(135deg, #48bb78, #38a169);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-returned::before {
+  content: "📦";
+  font-size: 0.8rem;
+}
+
+/* Return button styles */
+.action-btn.return-btn {
+  background: linear-gradient(135deg, #4299e1, #3182ce);
+  color: white;
+}
+
+.action-btn.return-btn:hover {
+  background: linear-gradient(135deg, #3182ce, #2c5282);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(66, 153, 225, 0.4);
+}
+
 .action-btn:focus:not(:focus-visible) {
   outline: none;
 }

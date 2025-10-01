@@ -21,8 +21,14 @@ export default function RequestFormsPage() {
   // Add these missing state variables
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnFormData, setReturnFormData] = useState({
+    condition: "good",
+    delayReason: "",
+    notes: ""
+  });
 
-  const statuses = ["pending", "approved", "rejected", "in_progress"];
+  const statuses = ["pending", "approved", "rejected", "in_progress", "returned"];
   const requestTypes = ["Alcohol", "Laboratory Equipment", "Chemicals", "Other"];
 
   // Load laboratories data
@@ -192,25 +198,43 @@ export default function RequestFormsPage() {
       }
     });
 
-  const handleStatusUpdate = async (requestId, newStatus) => {
+  const handleStatusUpdate = async (requestId, newStatus, returnDetails = null) => {
     try {
       const requestRef = ref(database, `borrow_requests/${requestId}`);
-      await update(requestRef, {
+      const updateData = {
         status: newStatus,
         updatedAt: new Date().toISOString(),
         reviewedBy: "Admin" // You can get actual admin name from auth
-      });
+      };
+
+      // Add return details if provided
+      if (returnDetails) {
+        updateData.returnDetails = returnDetails;
+        updateData.returnedAt = new Date().toISOString();
+      }
+
+      await update(requestRef, updateData);
       
       // Update local state for both allRequests and filtered requests
       setAllRequests(prev => prev.map(request => 
         request.id === requestId 
-          ? { ...request, status: newStatus, updatedAt: new Date().toISOString() }
+          ? { 
+              ...request, 
+              status: newStatus, 
+              updatedAt: new Date().toISOString(),
+              ...(returnDetails && { returnDetails, returnedAt: new Date().toISOString() })
+            }
           : request
       ));
       
       setRequests(prev => prev.map(request => 
         request.id === requestId 
-          ? { ...request, status: newStatus, updatedAt: new Date().toISOString() }
+          ? { 
+              ...request, 
+              status: newStatus, 
+              updatedAt: new Date().toISOString(),
+              ...(returnDetails && { returnDetails, returnedAt: new Date().toISOString() })
+            }
           : request
       ));
     } catch (error) {
@@ -247,6 +271,7 @@ export default function RequestFormsPage() {
       case 'approved': return 'status-approved';
       case 'rejected': return 'status-rejected';
       case 'in_progress': return 'status-progress';
+      case 'returned': return 'status-returned';
       default: return 'status-pending';
     }
   };
@@ -259,6 +284,47 @@ export default function RequestFormsPage() {
   const closeDetailsModal = () => {
     setSelectedRequest(null);
     setShowDetailsModal(false);
+  };
+
+  const openReturnModal = (request) => {
+    setSelectedRequest(request);
+    setReturnFormData({
+      condition: "good",
+      delayReason: "",
+      notes: ""
+    });
+    setShowReturnModal(true);
+  };
+
+  const closeReturnModal = () => {
+    setSelectedRequest(null);
+    setShowReturnModal(false);
+    setReturnFormData({
+      condition: "good",
+      delayReason: "",
+      notes: ""
+    });
+  };
+
+  const handleReturnSubmit = async () => {
+    if (!selectedRequest) return;
+
+    try {
+      const returnDetails = {
+        condition: returnFormData.condition,
+        delayReason: returnFormData.delayReason,
+        notes: returnFormData.notes,
+        processedBy: "Admin" // You can get actual admin name from auth
+      };
+
+      await handleStatusUpdate(selectedRequest.id, "returned", returnDetails);
+      closeReturnModal();
+      closeDetailsModal();
+      alert("Item marked as returned successfully!");
+    } catch (error) {
+      console.error("Error processing return:", error);
+      alert("Failed to process return. Please try again.");
+    }
   };
 
   const handleSort = (field) => {
@@ -431,6 +497,15 @@ export default function RequestFormsPage() {
                             </button>
                           </>
                         )}
+                        {request.status === "in_progress" && (
+                          <button
+                            className="action-btn return-btn"
+                            onClick={() => openReturnModal(request)}
+                            title="Process Return"
+                          >
+                            📦
+                          </button>
+                        )}
                         <button
                           className="action-btn delete-btn"
                           onClick={() => handleDeleteRequest(request.id)}
@@ -589,6 +664,12 @@ export default function RequestFormsPage() {
                 {selectedRequest.status === "in_progress" && (
                   <>
                     <button
+                      className="btn btn-primary"
+                      onClick={() => openReturnModal(selectedRequest)}
+                    >
+                      📦 Process Return
+                    </button>
+                    <button
                       className="btn btn-success"
                       onClick={() => {
                         handleStatusUpdate(selectedRequest.id, "approved");
@@ -621,6 +702,96 @@ export default function RequestFormsPage() {
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Return Modal */}
+      {showReturnModal && selectedRequest && (
+        <div className="modal-overlay" onClick={closeReturnModal}>
+          <div className="modal-content return-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Process Item Return</h2>
+              <button className="modal-close" onClick={closeReturnModal}>×</button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="return-form">
+                <div className="form-group">
+                  <label>Item: {selectedRequest.itemName}</label>
+                  <label>Borrower: {selectedRequest.adviserName}</label>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="condition">Item Condition:</label>
+                  <select
+                    id="condition"
+                    value={returnFormData.condition}
+                    onChange={(e) => setReturnFormData(prev => ({...prev, condition: e.target.value}))}
+                    className="form-select"
+                  >
+                    <option value="good">Good Condition</option>
+                    <option value="damaged">Damaged</option>
+                    <option value="lost">Lost/Missing</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="delayReason">Return Status:</label>
+                  <select
+                    id="delayReason"
+                    value={returnFormData.delayReason}
+                    onChange={(e) => setReturnFormData(prev => ({...prev, delayReason: e.target.value}))}
+                    className="form-select"
+                  >
+                    <option value="">On Time</option>
+                    <option value="late">Late Return</option>
+                    <option value="early">Early Return</option>
+                  </select>
+                </div>
+
+                {(returnFormData.delayReason === "late") && (
+                  <div className="form-group">
+                    <label htmlFor="delayNotes">Reason for Delay:</label>
+                    <textarea
+                      id="delayNotes"
+                      value={returnFormData.notes}
+                      onChange={(e) => setReturnFormData(prev => ({...prev, notes: e.target.value}))}
+                      placeholder="Please explain the reason for the delay..."
+                      className="form-textarea"
+                      rows="3"
+                    />
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label htmlFor="returnNotes">Additional Notes:</label>
+                  <textarea
+                    id="returnNotes"
+                    value={returnFormData.notes}
+                    onChange={(e) => setReturnFormData(prev => ({...prev, notes: e.target.value}))}
+                    placeholder="Any additional notes about the return..."
+                    className="form-textarea"
+                    rows="3"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-actions">
+              <button
+                className="btn btn-secondary"
+                onClick={closeReturnModal}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-success"
+                onClick={handleReturnSubmit}
+              >
+                ✅ Confirm Return
+              </button>
             </div>
           </div>
         </div>
