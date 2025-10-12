@@ -10,6 +10,7 @@ export default function HistoryPage() {
   const [historyData, setHistoryData] = useState([]);
   const [equipmentData, setEquipmentData] = useState([]);
   const [laboratories, setLaboratories] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState("All Types");
   const [filterStatus, setFilterStatus] = useState("Status");
@@ -77,10 +78,37 @@ export default function HistoryPage() {
     }
   };
 
+  // Load users data to get borrower names
+  const loadUsers = async () => {
+    try {
+      const usersRef = ref(database, 'users');
+      const snapshot = await get(usersRef);
+      
+      if (snapshot.exists()) {
+        const usersData = snapshot.val();
+        const usersList = Object.keys(usersData).map(key => ({
+          id: key,
+          ...usersData[key]
+        }));
+        setUsers(usersList);
+      }
+    } catch (error) {
+      console.error("Error loading users data:", error);
+    }
+  };
+
+  // Helper function to get borrower name from userId
+  const getBorrowerName = (userId) => {
+    if (!userId) return "Unknown";
+    const user = users.find(u => u.id === userId || u.userId === userId);
+    return user?.name || user?.fullName || user?.displayName || user?.email || "Unknown";
+  };
+
   // Load history data from Firebase
   useEffect(() => {
     loadLaboratories();
     loadEquipmentData();
+    loadUsers();
     const borrowRequestsRef = ref(database, 'borrow_requests');
     
     const unsubscribe = onValue(borrowRequestsRef, (snapshot) => {
@@ -98,6 +126,8 @@ export default function HistoryPage() {
             action: "Item Released",
             equipmentName: request.itemName,
             borrower: request.adviserName,
+            userId: request.userId,
+            adviserName: request.adviserName,
             status: request.status || "Released",
             releasedDate: request.requestedAt || request.dateToBeUsed,
             returnDate: request.dateToReturn,
@@ -124,6 +154,8 @@ export default function HistoryPage() {
               action: isReturned ? "Item Returned" : "Status Updated",
               equipmentName: request.itemName,
               borrower: request.adviserName,
+              userId: request.userId,
+              adviserName: request.adviserName,
               status: isReturned ? "Returned" : request.status,
               releasedDate: request.requestedAt,
               returnDate: isReturned ? (request.returnedAt || request.updatedAt) : request.dateToReturn,
@@ -187,8 +219,11 @@ export default function HistoryPage() {
 
   // Filter and sort history data
   const filteredHistory = historyData.filter(entry => {
+    const borrowerName = getBorrowerName(entry.userId);
     const matchesSearch = entry.equipmentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          entry.borrower?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         borrowerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         entry.adviserName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          entry.action?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesType = filterType === "All Types" || entry.action.includes(filterType);
@@ -460,7 +495,8 @@ export default function HistoryPage() {
                   <tr>
                     <th>Action</th>
                     <th>Equipment Name</th>
-                    <th>Borrower</th>
+                    <th>Borrower Name</th>
+                    <th>Adviser Name</th>
                     <th>Status</th>
                     <th>Released Date</th>
                     <th>Return Date</th>
@@ -473,7 +509,8 @@ export default function HistoryPage() {
                     <tr key={entry.id}>
                       <td className="table-cell">{entry.action}</td>
                       <td className="table-cell equipment-name">{entry.equipmentName}</td>
-                      <td className="table-cell">{entry.borrower}</td>
+                      <td className="table-cell">{getBorrowerName(entry.userId)}</td>
+                      <td className="table-cell">{entry.adviserName || "Unknown"}</td>
                       <td className="table-cell">
                         <span className={`status-badge ${getStatusClass(entry.status)}`}>
                           {entry.status}
@@ -597,8 +634,12 @@ export default function HistoryPage() {
                       <div className="detail-value">{selectedEntry.equipmentName}</div>
                     </div>
                     <div className="detail-item">
-                      <div className="detail-label">Borrower:</div>
-                      <div className="detail-value">{selectedEntry.borrower}</div>
+                      <div className="detail-label">Borrower Name:</div>
+                      <div className="detail-value highlight-text">{getBorrowerName(selectedEntry.userId)}</div>
+                    </div>
+                    <div className="detail-item">
+                      <div className="detail-label">Adviser Name:</div>
+                      <div className="detail-value highlight-text">{selectedEntry.adviserName || "Unknown"}</div>
                     </div>
                     <div className="detail-item">
                       <div className="detail-label">Status:</div>

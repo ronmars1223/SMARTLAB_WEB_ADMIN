@@ -11,6 +11,7 @@ export default function RequestFormsPage() {
   const [requests, setRequests] = useState([]);
   const [equipmentData, setEquipmentData] = useState([]);
   const [laboratories, setLaboratories] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterType, setFilterType] = useState("All");
@@ -28,7 +29,7 @@ export default function RequestFormsPage() {
     notes: ""
   });
 
-  const statuses = ["pending", "approved", "rejected", "in_progress", "returned"];
+  const statuses = ["pending", "approved", "released", "rejected", "in_progress", "returned"];
   const requestTypes = ["Alcohol", "Laboratory Equipment", "Chemicals", "Other"];
 
   // Load laboratories data
@@ -85,10 +86,37 @@ export default function RequestFormsPage() {
     }
   };
 
+  // Load users data to get borrower names
+  const loadUsers = async () => {
+    try {
+      const usersRef = ref(database, 'users');
+      const snapshot = await get(usersRef);
+      
+      if (snapshot.exists()) {
+        const usersData = snapshot.val();
+        const usersList = Object.keys(usersData).map(key => ({
+          id: key,
+          ...usersData[key]
+        }));
+        setUsers(usersList);
+      }
+    } catch (error) {
+      console.error("Error loading users data:", error);
+    }
+  };
+
+  // Helper function to get borrower name from userId
+  const getBorrowerName = (userId) => {
+    if (!userId) return "Unknown";
+    const user = users.find(u => u.id === userId || u.userId === userId);
+    return user?.name || user?.fullName || user?.displayName || user?.email || "Unknown";
+  };
+
   // Load requests from Firebase
   useEffect(() => {
     loadLaboratories();
     loadEquipmentData();
+    loadUsers();
     
     const borrowRequestsRef = ref(database, 'borrow_requests');
     
@@ -174,8 +202,10 @@ export default function RequestFormsPage() {
   // Filter and sort requests
   const filteredRequests = requests
     .filter(request => {
+      const borrowerName = getBorrowerName(request.userId);
       const matchesSearch = request.itemName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            request.adviserName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           borrowerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            request.categoryName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            request.laboratory?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = filterStatus === "All" || request.status === filterStatus;
@@ -269,6 +299,7 @@ export default function RequestFormsPage() {
     switch (status) {
       case 'pending': return 'status-pending';
       case 'approved': return 'status-approved';
+      case 'released': return 'status-released';
       case 'rejected': return 'status-rejected';
       case 'in_progress': return 'status-progress';
       case 'returned': return 'status-returned';
@@ -415,11 +446,11 @@ export default function RequestFormsPage() {
                   <th onClick={() => handleSort("itemName")} className="sortable">
                     Item Name {getSortIcon("itemName")}
                   </th>
-                  <th onClick={() => handleSort("adviserName")} className="sortable">
-                    Borrower Name {getSortIcon("adviserName")}
+                  <th>
+                    Borrower Name
                   </th>
-                  <th onClick={() => handleSort("categoryName")} className="sortable">
-                    Category {getSortIcon("categoryName")}
+                  <th onClick={() => handleSort("adviserName")} className="sortable">
+                    Adviser Name {getSortIcon("adviserName")}
                   </th>
                   <th onClick={() => handleSort("laboratory")} className="sortable">
                     Laboratory {getSortIcon("laboratory")}
@@ -448,15 +479,18 @@ export default function RequestFormsPage() {
                     <td className="borrower-cell">
                       <div className="borrower-info">
                         <div className="borrower-avatar">
-                          {request.adviserName?.charAt(0)?.toUpperCase() || "?"}
+                          {getBorrowerName(request.userId)?.charAt(0)?.toUpperCase() || "?"}
                         </div>
-                        <span className="borrower-name">{request.adviserName || "Unknown"}</span>
+                        <span className="borrower-name">{getBorrowerName(request.userId)}</span>
                       </div>
                     </td>
-                    <td>
-                      <span className="category-badge">
-                        {request.categoryName || "General"}
-                      </span>
+                    <td className="adviser-cell">
+                      <div className="adviser-info">
+                        <div className="adviser-avatar">
+                          {request.adviserName?.charAt(0)?.toUpperCase() || "?"}
+                        </div>
+                        <span className="adviser-name">{request.adviserName || "Unknown"}</span>
+                      </div>
                     </td>
                     <td className="laboratory-cell">{request.laboratory || "Not specified"}</td>
                     <td className="quantity-cell">
@@ -497,7 +531,16 @@ export default function RequestFormsPage() {
                             </button>
                           </>
                         )}
-                        {request.status === "in_progress" && (
+                        {request.status === "approved" && (
+                          <button
+                            className="action-btn release-btn"
+                            onClick={() => handleStatusUpdate(request.id, "released")}
+                            title="Release Item"
+                          >
+                            🚀 Release
+                          </button>
+                        )}
+                        {(request.status === "released" || request.status === "in_progress") && (
                           <button
                             className="action-btn return-btn"
                             onClick={() => openReturnModal(request)}
@@ -572,16 +615,20 @@ export default function RequestFormsPage() {
                 <div className="detail-section">
                   <h3>Requester Information</h3>
                   <div className="detail-item">
-                    <label>Adviser Name:</label>
-                    <span>{selectedRequest.adviserName || "N/A"}</span>
+                    <label>Borrower Name:</label>
+                    <span className="highlight-text">{getBorrowerName(selectedRequest.userId)}</span>
                   </div>
                   <div className="detail-item">
-                    <label>User Email:</label>
+                    <label>Borrower Email:</label>
                     <span>{selectedRequest.userEmail || "N/A"}</span>
                   </div>
                   <div className="detail-item">
-                    <label>User ID:</label>
+                    <label>Borrower ID:</label>
                     <span>{selectedRequest.userId || "N/A"}</span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Adviser Name:</label>
+                    <span className="highlight-text">{selectedRequest.adviserName || "N/A"}</span>
                   </div>
                   <div className="detail-item">
                     <label>Adviser ID:</label>
@@ -661,7 +708,30 @@ export default function RequestFormsPage() {
                   </>
                 )}
                 
-                {selectedRequest.status === "in_progress" && (
+                {selectedRequest.status === "approved" && (
+                  <>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => {
+                        handleStatusUpdate(selectedRequest.id, "released");
+                        closeDetailsModal();
+                      }}
+                    >
+                      🚀 Release Item
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        handleStatusUpdate(selectedRequest.id, "pending");
+                        closeDetailsModal();
+                      }}
+                    >
+                      🔄 Reset to Pending
+                    </button>
+                  </>
+                )}
+                
+                {(selectedRequest.status === "released" || selectedRequest.status === "in_progress") && (
                   <>
                     <button
                       className="btn btn-primary"
@@ -690,7 +760,7 @@ export default function RequestFormsPage() {
                   </>
                 )}
 
-                {(selectedRequest.status === "approved" || selectedRequest.status === "rejected") && (
+                {selectedRequest.status === "rejected" && (
                   <button
                     className="btn btn-secondary"
                     onClick={() => {
@@ -720,7 +790,8 @@ export default function RequestFormsPage() {
               <div className="return-form">
                 <div className="form-group">
                   <label>Item: {selectedRequest.itemName}</label>
-                  <label>Borrower: {selectedRequest.adviserName}</label>
+                  <label>Borrower: {getBorrowerName(selectedRequest.userId)}</label>
+                  <label>Adviser: {selectedRequest.adviserName}</label>
                 </div>
 
                 <div className="form-group">

@@ -300,7 +300,7 @@ export default function EquipmentPage() {
   const handleEquipmentSubmit = async (e) => {
     e.preventDefault();
     
-    if (!equipmentFormData.name.trim() || !equipmentFormData.serialNumber.trim() || !selectedCategory) {
+    if (!equipmentFormData.name.trim() || !selectedCategory) {
       setFeedbackMessage("Please fill in required fields and select a category");
       setShowErrorModal(true);
       return;
@@ -521,7 +521,7 @@ export default function EquipmentPage() {
       Condition: equipment.condition,
       Location: equipment.location,
       'Purchase Date': equipment.purchaseDate,
-      'Warranty Expiry': equipment.warrantyExpiry,
+      'Expiration Date': equipment.warrantyExpiry,
       'Assigned To': equipment.assignedTo,
       Notes: equipment.notes
     }));
@@ -807,7 +807,7 @@ export default function EquipmentPage() {
                                   className={`warranty-status ${warrantyStatus.status}`}
                                   style={{ color: warrantyStatus.color }}
                                 >
-                                  Warranty: {warrantyStatus.text}
+                                  Expires: {warrantyStatus.text}
                                 </div>
                               )}
                             </div>
@@ -1031,14 +1031,13 @@ export default function EquipmentPage() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label required">Serial Number</label>
+                  <label className="form-label">Serial Number</label>
                   <input
                     type="text"
                     name="serialNumber"
                     value={equipmentFormData.serialNumber}
                     onChange={handleEquipmentInputChange}
                     placeholder="e.g., SN123456789"
-                    required
                     className="form-input"
                   />
                 </div>
@@ -1120,7 +1119,7 @@ export default function EquipmentPage() {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Warranty Expiry</label>
+                  <label className="form-label">Expiration Date</label>
                   <input
                     type="date"
                     name="warrantyExpiry"

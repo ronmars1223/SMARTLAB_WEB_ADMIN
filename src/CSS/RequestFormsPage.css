@@ -8,12 +8,52 @@
   background: white;
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(42, 165, 157, 0.1);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: visible;
   border: 1px solid rgba(42, 165, 157, 0.1);
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+}
+
+.table-container::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 30px;
+  background: linear-gradient(to left, rgba(255, 255, 255, 0.9), transparent);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.table-container:not(.scrolled-end)::after {
+  opacity: 1;
+}
+
+/* Scrollbar styling */
+.table-container::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+  background: #2aa59d;
+  border-radius: 10px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+  background: #43b091;
 }
 
 .requests-table {
   width: 100%;
+  min-width: 1200px;
   border-collapse: collapse;
 }
 
@@ -204,6 +244,18 @@
 .reject-btn:hover {
   background: #dc2626;
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.release-btn {
+  background: #3b82f6;
+  color: white;
+  min-width: 90px;
+  justify-content: center;
+}
+
+.release-btn:hover {
+  background: #2563eb;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .delete-btn {
@@ -718,14 +770,19 @@
   color: #065f46;
 }
 
+.status-badge.status-released {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
 .status-badge.status-rejected {
   background: #fee2e2;
   color: #991b1b;
 }
 
 .status-badge.status-progress {
-  background: #dbeafe;
-  color: #1e40af;
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .priority-badge {
@@ -777,23 +834,44 @@
   box-shadow: 0 8px 20px rgba(107, 114, 128, 0.3);
 }
 
+.btn-primary {
+  background: #3b82f6;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #2563eb;
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+}
+
 /* Status badges in modal */
 .detail-item .status-badge {
   margin-left: auto;
 }
 
 /* Responsive Design for Table */
-@media (max-width: 1024px) {
-  .table-container {
-    overflow-x: auto;
-  }
-  
+@media (max-width: 1400px) {
   .requests-table {
-    min-width: 900px;
+    min-width: 1100px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .requests-table {
+    min-width: 1000px;
   }
   
   .details-grid {
     grid-template-columns: 1fr;
+  }
+  
+  .item-name-cell {
+    min-width: 150px;
+  }
+  
+  .adviser-cell,
+  .borrower-cell {
+    min-width: 120px;
   }
 }
 
@@ -838,12 +916,22 @@
   }
   
   .requests-table {
-    min-width: 800px;
+    min-width: 900px;
   }
   
   .requests-table th,
   .requests-table td {
     padding: 12px 8px;
+    font-size: 13px;
+  }
+  
+  .item-name-cell {
+    min-width: 140px;
+  }
+  
+  .adviser-cell,
+  .borrower-cell {
+    min-width: 110px;
   }
   
   .table-actions {
@@ -911,13 +999,29 @@
   }
   
   .requests-table {
-    min-width: 700px;
+    min-width: 800px;
   }
   
   .requests-table th,
   .requests-table td {
     padding: 10px 6px;
-    font-size: 12px;
+    font-size: 11px;
+  }
+  
+  .item-name-cell {
+    min-width: 120px;
+  }
+  
+  .adviser-cell,
+  .borrower-cell {
+    min-width: 100px;
+  }
+  
+  .adviser-avatar,
+  .borrower-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
   }
   
   .modal-header {
