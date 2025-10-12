@@ -450,7 +450,7 @@ export default function RequestFormsPage() {
                     Borrower Name
                   </th>
                   <th onClick={() => handleSort("adviserName")} className="sortable">
-                    Adviser Name {getSortIcon("adviserName")}
+                    Instructor Name {getSortIcon("adviserName")}
                   </th>
                   <th onClick={() => handleSort("laboratory")} className="sortable">
                     Laboratory {getSortIcon("laboratory")}
@@ -627,11 +627,11 @@ export default function RequestFormsPage() {
                     <span>{selectedRequest.userId || "N/A"}</span>
                   </div>
                   <div className="detail-item">
-                    <label>Adviser Name:</label>
+                    <label>Instructor Name:</label>
                     <span className="highlight-text">{selectedRequest.adviserName || "N/A"}</span>
                   </div>
                   <div className="detail-item">
-                    <label>Adviser ID:</label>
+                    <label>Instructor ID:</label>
                     <span>{selectedRequest.adviserId || "N/A"}</span>
                   </div>
                 </div>
@@ -791,7 +791,7 @@ export default function RequestFormsPage() {
                 <div className="form-group">
                   <label>Item: {selectedRequest.itemName}</label>
                   <label>Borrower: {getBorrowerName(selectedRequest.userId)}</label>
-                  <label>Adviser: {selectedRequest.adviserName}</label>
+                  <label>Instructor: {selectedRequest.adviserName}</label>
                 </div>
 
                 <div className="form-group">

@@ -496,7 +496,7 @@ export default function HistoryPage() {
                     <th>Action</th>
                     <th>Equipment Name</th>
                     <th>Borrower Name</th>
-                    <th>Adviser Name</th>
+                    <th>Instructor Name</th>
                     <th>Status</th>
                     <th>Released Date</th>
                     <th>Return Date</th>
@@ -638,7 +638,7 @@ export default function HistoryPage() {
                       <div className="detail-value highlight-text">{getBorrowerName(selectedEntry.userId)}</div>
                     </div>
                     <div className="detail-item">
-                      <div className="detail-label">Adviser Name:</div>
+                      <div className="detail-label">Instructor Name:</div>
                       <div className="detail-value highlight-text">{selectedEntry.adviserName || "Unknown"}</div>
                     </div>
                     <div className="detail-item">
