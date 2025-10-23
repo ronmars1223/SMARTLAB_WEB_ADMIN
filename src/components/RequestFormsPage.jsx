@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { ref, onValue, update, remove, get } from "firebase/database";
 import { database } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
+import { notifyNewRequest, notifyRequestApproved, notifyRequestRejected, notifyEquipmentReturned } from "../utils/notificationUtils";
 import "../CSS/RequestFormsPage.css";
 
 export default function RequestFormsPage() {
@@ -112,6 +113,44 @@ export default function RequestFormsPage() {
     return user?.name || user?.fullName || user?.displayName || user?.email || "Unknown";
   };
 
+  // Check for new requests and create notifications
+  const checkForNewRequests = async (requestsList) => {
+    if (!equipmentData.length || !laboratories.length) return;
+    
+    // Get previously processed request IDs from localStorage
+    const processedRequests = JSON.parse(localStorage.getItem('processedRequests') || '[]');
+    
+    // Find new requests (pending status and not previously processed)
+    const newRequests = requestsList.filter(request => 
+      request.status === 'pending' && 
+      !processedRequests.includes(request.id)
+    );
+    
+    // Create notifications for new requests
+    for (const request of newRequests) {
+      // Find equipment data
+      const equipment = equipmentData.find(eq => 
+        eq.equipmentName === request.itemName || 
+        eq.itemName === request.itemName ||
+        eq.name === request.itemName ||
+        eq.title === request.itemName
+      );
+      
+      // Find laboratory data
+      const laboratory = laboratories.find(lab => lab.labId === equipment?.labId);
+      
+      if (equipment && laboratory) {
+        await notifyNewRequest(request, equipment, laboratory);
+      }
+      
+      // Mark as processed
+      processedRequests.push(request.id);
+    }
+    
+    // Update localStorage with processed requests
+    localStorage.setItem('processedRequests', JSON.stringify(processedRequests));
+  };
+
   // Load requests from Firebase
   useEffect(() => {
     loadLaboratories();
@@ -128,6 +167,9 @@ export default function RequestFormsPage() {
           ...data[key]
         }));
         
+        // Check for new requests and create notifications
+        checkForNewRequests(requestsList);
+        
         setAllRequests(requestsList);
       } else {
         setAllRequests([]);
@@ -136,7 +178,7 @@ export default function RequestFormsPage() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [equipmentData, laboratories]);
 
   // Filter requests based on user role and assigned laboratories
   useEffect(() => {
@@ -244,6 +286,40 @@ export default function RequestFormsPage() {
       }
 
       await update(requestRef, updateData);
+      
+      // Find the request data for notifications
+      const requestData = allRequests.find(req => req.id === requestId);
+      
+      // Send notifications based on status change
+      if (requestData) {
+        // Find equipment data
+        const equipment = equipmentData.find(eq => 
+          eq.equipmentName === requestData.itemName || 
+          eq.itemName === requestData.itemName ||
+          eq.name === requestData.itemName ||
+          eq.title === requestData.itemName
+        );
+        
+        // Find laboratory data
+        const laboratory = laboratories.find(lab => lab.labId === equipment?.labId);
+        
+        if (equipment && laboratory) {
+          switch (newStatus) {
+            case 'approved':
+              await notifyRequestApproved(requestData, equipment, laboratory, "Admin");
+              break;
+            case 'rejected':
+              await notifyRequestRejected(requestData, equipment, laboratory, "Admin");
+              break;
+            case 'returned':
+              await notifyEquipmentReturned(requestData, equipment, laboratory, returnDetails);
+              break;
+            default:
+              // No notification needed for other statuses
+              break;
+          }
+        }
+      }
       
       // Update local state for both allRequests and filtered requests
       setAllRequests(prev => prev.map(request => 

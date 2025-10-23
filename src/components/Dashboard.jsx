@@ -1,6 +1,6 @@
 // src/components/Dashboard.js
 import React, { useState, useEffect } from "react";
-import { ref, push, onValue, remove, update } from "firebase/database";
+import { ref, push, onValue, remove, update, get } from "firebase/database";
 import { database } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import Sidebar from "./Sidebar";
@@ -11,12 +11,16 @@ import HistoryPage from "./HistoryPage";
 import AnnouncementModal from "./AnnouncementModal";
 import Analytics from "./Analytics";
 import LaboratoryManagement from "./LaboratoryManagement";
+import NotificationModal from "./NotificationModal";
+import { checkForOverdueEquipment } from "../utils/notificationUtils";
 import "../CSS/Dashboard.css";
 
 export default function Dashboard() {
-  const { user, userRole, isAdmin, isLaboratoryManager } = useAuth();
+  const { user, userRole, isAdmin, isLaboratoryManager, getAssignedLaboratoryIds } = useAuth();
   const [activeSection, setActiveSection] = useState("dashboard");
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [announcements, setAnnouncements] = useState([]);
   const [editingAnnouncement, setEditingAnnouncement] = useState(null);
   const [dashboardStats, setDashboardStats] = useState({
@@ -32,6 +36,9 @@ export default function Dashboard() {
   });
   const [borrowingData, setBorrowingData] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
+  const [allRequests, setAllRequests] = useState([]);
+  const [equipmentData, setEquipmentData] = useState([]);
+  const [laboratories, setLaboratories] = useState([]);
 
   // Load announcements from Firebase
   useEffect(() => {
@@ -54,6 +61,127 @@ export default function Dashboard() {
 
     return () => unsubscribe();
   }, []);
+
+  // Load unread notification count for Laboratory Managers
+  useEffect(() => {
+    if (!isLaboratoryManager()) return;
+
+    const notificationsRef = ref(database, 'notifications');
+    
+    const unsubscribe = onValue(notificationsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const notificationsList = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+        
+        // Get assigned laboratory IDs for this user
+        const assignedLabIds = getAssignedLaboratoryIds();
+        
+        // Count unread notifications for this user
+        const unreadCount = notificationsList.filter(notification => {
+          if (notification.isRead) return false;
+          
+          // Check if notification is directly for this user
+          if (notification.recipientUserId === user.uid) return true;
+          
+          // Check if notification is for one of their assigned laboratories
+          if (notification.labId && assignedLabIds.includes(notification.labId)) return true;
+          
+          return false;
+        }).length;
+        
+        setUnreadNotificationCount(unreadCount);
+      } else {
+        setUnreadNotificationCount(0);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [isLaboratoryManager, user, getAssignedLaboratoryIds]);
+
+  // Load data for overdue equipment checking
+  useEffect(() => {
+    const loadDataForOverdueCheck = async () => {
+      try {
+        // Load borrow requests
+        const borrowRequestsRef = ref(database, 'borrow_requests');
+        const borrowSnapshot = await get(borrowRequestsRef);
+        
+        if (borrowSnapshot.exists()) {
+          const requestsData = borrowSnapshot.val();
+          const requestsList = Object.keys(requestsData).map(key => ({
+            id: key,
+            ...requestsData[key]
+          }));
+          setAllRequests(requestsList);
+        }
+
+        // Load equipment data
+        const categoriesRef = ref(database, 'equipment_categories');
+        const categoriesSnapshot = await get(categoriesRef);
+        
+        if (categoriesSnapshot.exists()) {
+          const categoriesData = categoriesSnapshot.val();
+          const allEquipment = [];
+          
+          for (const categoryId in categoriesData) {
+            const equipmentsRef = ref(database, `equipment_categories/${categoryId}/equipments`);
+            const equipmentsSnapshot = await get(equipmentsRef);
+            
+            if (equipmentsSnapshot.exists()) {
+              const equipmentData = equipmentsSnapshot.val();
+              Object.keys(equipmentData).forEach(equipmentId => {
+                allEquipment.push({
+                  id: equipmentId,
+                  categoryId: categoryId,
+                  categoryName: categoriesData[categoryId].title,
+                  ...equipmentData[equipmentId]
+                });
+              });
+            }
+          }
+          
+          setEquipmentData(allEquipment);
+        }
+
+        // Load laboratories
+        const laboratoriesRef = ref(database, 'laboratories');
+        const laboratoriesSnapshot = await get(laboratoriesRef);
+        
+        if (laboratoriesSnapshot.exists()) {
+          const laboratoriesData = laboratoriesSnapshot.val();
+          const laboratoriesList = Object.keys(laboratoriesData).map(key => ({
+            id: key,
+            ...laboratoriesData[key]
+          }));
+          setLaboratories(laboratoriesList);
+        }
+      } catch (error) {
+        console.error("Error loading data for overdue check:", error);
+      }
+    };
+
+    loadDataForOverdueCheck();
+  }, []);
+
+  // Periodic overdue equipment check (runs every hour)
+  useEffect(() => {
+    if (allRequests.length === 0 || equipmentData.length === 0 || laboratories.length === 0) return;
+
+    const checkOverdue = async () => {
+      await checkForOverdueEquipment(allRequests, equipmentData, laboratories);
+    };
+
+    // Run immediately
+    checkOverdue();
+
+    // Set up interval to check every hour
+    const interval = setInterval(checkOverdue, 60 * 60 * 1000); // 1 hour
+
+    return () => clearInterval(interval);
+  }, [allRequests, equipmentData, laboratories]);
 
   // Load dashboard analytics data
   useEffect(() => {
@@ -377,8 +505,24 @@ export default function Dashboard() {
         return (
           <div className="dashboard-content-centered">
             <div className="dashboard-welcome">
-              <h1>Welcome to SmartLab Dashboard</h1>
-              <p>Monitor and manage your laboratory equipment efficiently</p>
+              <div className="welcome-content">
+                <h1>Welcome to SmartLab Dashboard</h1>
+                <p>Monitor and manage your laboratory equipment efficiently</p>
+              </div>
+              {isLaboratoryManager() && (
+                <div className="notification-bell-container">
+                  <button 
+                    className="notification-bell"
+                    onClick={() => setShowNotificationModal(true)}
+                    title="View Notifications"
+                  >
+                    🔔
+                    {unreadNotificationCount > 0 && (
+                      <span className="notification-badge">{unreadNotificationCount}</span>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
             
             {/* Main Statistics Grid */}
@@ -665,6 +809,13 @@ export default function Dashboard() {
             setShowAnnouncementModal(false);
             setEditingAnnouncement(null);
           }}
+        />
+      )}
+      
+      {showNotificationModal && (
+        <NotificationModal
+          isOpen={showNotificationModal}
+          onClose={() => setShowNotificationModal(false)}
         />
       )}
     </div>

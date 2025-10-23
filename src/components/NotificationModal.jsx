@@ -1,0 +1,203 @@
+import React, { useState, useEffect } from "react";
+import { ref, onValue, update, get } from "firebase/database";
+import { database } from "../firebase";
+import { useAuth } from "../contexts/AuthContext";
+import "../CSS/NotificationModal.css";
+
+export default function NotificationModal({ isOpen, onClose }) {
+  const { user, isLaboratoryManager, getAssignedLaboratoryIds } = useAuth();
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("all"); // all, unread, read
+
+  useEffect(() => {
+    if (!isOpen || !isLaboratoryManager()) return;
+
+    const fetchNotifications = async () => {
+      try {
+        setLoading(true);
+        const notificationsRef = ref(database, 'notifications');
+        
+        onValue(notificationsRef, (snapshot) => {
+          const data = snapshot.val();
+          if (data) {
+            const notificationList = Object.keys(data).map(key => ({
+              id: key,
+              ...data[key]
+            }));
+
+            // Filter notifications for this laboratory manager
+            const assignedLabIds = getAssignedLaboratoryIds();
+            const filteredNotifications = notificationList.filter(notification => {
+              // Check if notification is for this user or their assigned laboratories
+              return notification.recipientUserId === user.uid || 
+                     (notification.labId && assignedLabIds.includes(notification.labId));
+            });
+
+            // Sort by timestamp (newest first)
+            filteredNotifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            
+            setNotifications(filteredNotifications);
+          } else {
+            setNotifications([]);
+          }
+          setLoading(false);
+        });
+      } catch (error) {
+        console.error("Error fetching notifications:", error);
+        setLoading(false);
+      }
+    };
+
+    fetchNotifications();
+  }, [isOpen, user, isLaboratoryManager, getAssignedLaboratoryIds]);
+
+  const markAsRead = async (notificationId) => {
+    try {
+      const notificationRef = ref(database, `notifications/${notificationId}`);
+      await update(notificationRef, {
+        isRead: true,
+        readAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const unreadNotifications = notifications.filter(n => !n.isRead);
+      const updates = {};
+      
+      unreadNotifications.forEach(notification => {
+        updates[`notifications/${notification.id}/isRead`] = true;
+        updates[`notifications/${notification.id}/readAt`] = new Date().toISOString();
+      });
+
+      if (Object.keys(updates).length > 0) {
+        await update(ref(database), updates);
+      }
+    } catch (error) {
+      console.error("Error marking all notifications as read:", error);
+    }
+  };
+
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'new_request':
+        return '📋';
+      case 'request_approved':
+        return '✅';
+      case 'request_rejected':
+        return '❌';
+      case 'equipment_returned':
+        return '📦';
+      case 'equipment_overdue':
+        return '⚠️';
+      default:
+        return '🔔';
+    }
+  };
+
+  const getNotificationColor = (type) => {
+    switch (type) {
+      case 'new_request':
+        return '#3b82f6'; // blue
+      case 'request_approved':
+        return '#10b981'; // green
+      case 'request_rejected':
+        return '#ef4444'; // red
+      case 'equipment_returned':
+        return '#8b5cf6'; // purple
+      case 'equipment_overdue':
+        return '#f59e0b'; // orange
+      default:
+        return '#6b7280'; // gray
+    }
+  };
+
+  const filteredNotifications = notifications.filter(notification => {
+    if (filter === 'unread') return !notification.isRead;
+    if (filter === 'read') return notification.isRead;
+    return true; // all
+  });
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="notification-overlay">
+      <div className="notification-modal">
+        <div className="notification-header">
+          <h2>🔔 Notifications</h2>
+          <div className="notification-controls">
+            <select 
+              value={filter} 
+              onChange={(e) => setFilter(e.target.value)}
+              className="notification-filter"
+            >
+              <option value="all">All ({notifications.length})</option>
+              <option value="unread">Unread ({unreadCount})</option>
+              <option value="read">Read ({notifications.length - unreadCount})</option>
+            </select>
+            {unreadCount > 0 && (
+              <button 
+                className="mark-all-read-btn"
+                onClick={markAllAsRead}
+                title="Mark all as read"
+              >
+                Mark All Read
+              </button>
+            )}
+            <button 
+              className="close-btn"
+              onClick={onClose}
+              title="Close"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <div className="notification-content">
+          {loading ? (
+            <div className="loading">Loading notifications...</div>
+          ) : filteredNotifications.length === 0 ? (
+            <div className="no-notifications">
+              <div className="no-notifications-icon">🔕</div>
+              <p>No notifications found</p>
+            </div>
+          ) : (
+            <div className="notification-list">
+              {filteredNotifications.map((notification) => (
+                <div 
+                  key={notification.id} 
+                  className={`notification-item ${notification.isRead ? 'read' : 'unread'}`}
+                  onClick={() => !notification.isRead && markAsRead(notification.id)}
+                >
+                  <div className="notification-icon" style={{ color: getNotificationColor(notification.type) }}>
+                    {getNotificationIcon(notification.type)}
+                  </div>
+                  <div className="notification-body">
+                    <div className="notification-title">{notification.title}</div>
+                    <div className="notification-message">{notification.message}</div>
+                    <div className="notification-meta">
+                      <span className="notification-time">
+                        {new Date(notification.timestamp).toLocaleString()}
+                      </span>
+                      {notification.labName && (
+                        <span className="notification-lab">Lab: {notification.labName}</span>
+                      )}
+                    </div>
+                  </div>
+                  {!notification.isRead && <div className="unread-indicator"></div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
