@@ -46,8 +46,12 @@ export default function EquipmentPage() {
     assignedTo: "",
     notes: "",
     categoryId: "",
-    labId: ""
+    labId: "",
+    imageUrl: ""
   });
+  
+  const [equipmentImage, setEquipmentImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
 
   const fetchCategories = useCallback(() => {
     try {
@@ -230,6 +234,58 @@ export default function EquipmentPage() {
       ...updatedData
     }));
   };
+  
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select a valid image file');
+        return;
+      }
+      
+      // Validate file size (max 2MB for base64 to avoid database bloat)
+      if (file.size > 2 * 1024 * 1024) {
+        alert('Image size should be less than 2MB for optimal performance');
+        return;
+      }
+      
+      setEquipmentImage(file);
+      
+      // Create preview and convert to base64
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+        // Store base64 string for saving to database
+        const base64String = reader.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  
+  const uploadEquipmentImage = async (file) => {
+    try {
+      // Convert image to base64 string for storing in database
+      console.log("Converting image to base64...");
+      
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64String = reader.result;
+          console.log("Image converted to base64 successfully");
+          resolve(base64String);
+        };
+        reader.onerror = (error) => {
+          console.error("Error reading file:", error);
+          reject(error);
+        };
+        reader.readAsDataURL(file);
+      });
+    } catch (error) {
+      console.error("Error converting image:", error);
+      return "";
+    }
+  };
 
   const handleCategorySubmit = async (e) => {
     e.preventDefault();
@@ -309,10 +365,25 @@ export default function EquipmentPage() {
     setIsSubmittingEquipment(true);
 
     try {
+      // Upload image if one was selected (optional, don't block if it fails)
+      let imageUrl = equipmentFormData.imageUrl;
+      if (equipmentImage) {
+        console.log("Uploading image...");
+        imageUrl = await uploadEquipmentImage(equipmentImage);
+        if (imageUrl) {
+          console.log("Image uploaded successfully:", imageUrl);
+        } else {
+          console.warn("Image upload failed but continuing with equipment save");
+        }
+      }
+      
       const equipmentData = {
         ...equipmentFormData,
-        categoryId: selectedCategory
+        categoryId: selectedCategory,
+        imageUrl: imageUrl || ""
       };
+
+      console.log("Saving equipment data:", equipmentData);
 
       if (editingEquipment) {
         const equipmentRef = ref(database, `equipment_categories/${selectedCategory}/equipments/${editingEquipment.id}`);
@@ -339,13 +410,13 @@ export default function EquipmentPage() {
       setTimeout(() => {
         resetEquipmentForm();
         setShowSuccessModal(false);
+        setIsSubmittingEquipment(false);
       }, 1500);
       
     } catch (error) {
       console.error("Error saving equipment:", error);
       setFeedbackMessage(`Error saving equipment: ${error.message}. Please try again.`);
       setShowErrorModal(true);
-    } finally {
       setIsSubmittingEquipment(false);
     }
   };
@@ -406,8 +477,13 @@ export default function EquipmentPage() {
       assignedTo: assignedTo,
       notes: equipment.notes || "",
       categoryId: equipment.categoryId || "",
-      labId: equipment.labId || ""
+      labId: equipment.labId || "",
+      imageUrl: equipment.imageUrl || ""
     });
+    setEquipmentImage(null);
+    // If imageUrl is a base64 string (starts with data:), use it as preview
+    // Otherwise it might be empty or a URL
+    setImagePreview(equipment.imageUrl && equipment.imageUrl.startsWith('data:') ? equipment.imageUrl : null);
     setShowAddEquipmentForm(true);
   };
 
@@ -465,8 +541,11 @@ export default function EquipmentPage() {
       assignedTo: "",
       notes: "",
       categoryId: "",
-      labId: ""
+      labId: "",
+      imageUrl: ""
     });
+    setEquipmentImage(null);
+    setImagePreview(null);
     setShowAddEquipmentForm(false);
     setEditingEquipment(null);
   };
@@ -1158,6 +1237,35 @@ export default function EquipmentPage() {
                   rows="3"
                   className="form-textarea"
                 />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Equipment Image</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="form-input"
+                />
+                <small className="form-help">
+                  Upload an image of the equipment (Max 2MB, stored in database)
+                </small>
+                
+                {imagePreview && (
+                  <div className="image-preview-container">
+                    <img src={imagePreview} alt="Equipment preview" className="image-preview" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEquipmentImage(null);
+                        setImagePreview(null);
+                      }}
+                      className="btn btn-sm btn-danger"
+                    >
+                      Remove Image
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="modal-actions">
