@@ -1,0 +1,45 @@
+# Git Commit Message for Recent Activity Features
+
+## Summary (Short commit message)
+```
+Implement role-based recent activity filter and See All functionality
+```
+
+## Description (Detailed commit message)
+```
+Implement role-based recent activity filter and See All functionality
+
+Changes:
+- Add role-based filtering for recent activities (admin vs lab manager)
+- Lab managers only see activities from their assigned laboratories
+- Admins see all activities across all laboratories
+- Include announcements in recent activity display
+- Add "See All" button to view complete activity log
+- Enhance activity display with detailed information (equipment name, borrower, lab)
+- Add All Activities modal for viewing full activity history
+- Style activity details with color-coded badges (item name, borrower, lab)
+
+Technical Details:
+- Filter activities based on laboratory assignments for lab managers
+- Check category.labId to match with manager's assigned laboratories
+- Store all activities for "See All" modal functionality
+- Display last 4 activities in dashboard, show all in modal
+- Add activity details (item name, borrower, laboratory) for better context
+- Include status icons for different activity types (approved, pending, released, rejected)
+
+Files modified:
+- src/components/Dashboard.jsx - Implement role-based activity filtering and See All modal
+- src/CSS/Dashboard.css - Add styling for activity details and modal
+
+Features Added:
+- Role-based activity filtering
+- "See All" functionality with activity count
+- Detailed activity information display
+- Laboratory-specific activity filtering for lab managers
+- Complete activity log modal
+```
+
+## Alternative Short Summary (one-liner)
+```
+Add role-based recent activity filter with See All modal
+```

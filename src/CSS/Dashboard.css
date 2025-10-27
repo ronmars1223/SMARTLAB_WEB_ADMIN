@@ -956,6 +956,26 @@
   font-size: 0.9rem;
 }
 
+.activity-header-with-button {
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.activity-header-with-button h3 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 8px 0;
+}
+
+.activity-header-with-button p {
+  color: #6b7280;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
 .activity-list {
   display: flex;
   flex-direction: column;
@@ -1018,6 +1038,55 @@
 .activity-time {
   font-size: 0.75rem;
   color: #9ca3af;
+}
+
+.activity-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.activity-item-name {
+  font-size: 0.875rem;
+  color: #059669;
+  font-weight: 500;
+}
+
+.activity-borrower {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.activity-lab {
+  font-size: 0.875rem;
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+.activity-author {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 8px;
+  line-height: 1;
+}
+
+.modal-close-btn:hover {
+  color: #ef4444;
+}
+
+.btn-sm {
+  padding: 8px 16px;
+  font-size: 0.875rem;
 }
 
 

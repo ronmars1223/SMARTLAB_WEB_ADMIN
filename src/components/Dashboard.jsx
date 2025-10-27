@@ -20,6 +20,8 @@ export default function Dashboard() {
   const [activeSection, setActiveSection] = useState("dashboard");
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [showAllActivitiesModal, setShowAllActivitiesModal] = useState(false);
+  const [allActivities, setAllActivities] = useState([]);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [announcements, setAnnouncements] = useState([]);
   const [editingAnnouncement, setEditingAnnouncement] = useState(null);
@@ -328,59 +330,22 @@ export default function Dashboard() {
         const borrowRequestsRef = ref(database, 'borrow_requests');
         const equipmentRef = ref(database, 'equipment');
         const announcementsRef = ref(database, 'announcements');
+        const categoriesRef = ref(database, 'equipment_categories');
 
         // Import get function for one-time reads
         const { get } = await import('firebase/database');
         
-        const [borrowSnapshot, equipmentSnapshot, announcementsSnapshot] = await Promise.all([
+        const [borrowSnapshot, equipmentSnapshot, announcementsSnapshot, categoriesSnapshot] = await Promise.all([
           get(borrowRequestsRef),
           get(equipmentRef),
-          get(announcementsRef)
+          get(announcementsRef),
+          get(categoriesRef)
         ]);
 
         const activities = [];
+        const assignedLabIds = isLaboratoryManager() ? getAssignedLaboratoryIds() : [];
 
-        // Process borrow requests
-        const borrowData = borrowSnapshot.val();
-        if (borrowData) {
-          Object.keys(borrowData).forEach(key => {
-            const request = borrowData[key];
-            activities.push({
-              id: `request_${key}`,
-              type: 'request',
-              title: request.status === 'approved' ? 'Borrow request approved' : 
-                     request.status === 'pending' ? 'New borrow request submitted' :
-                     request.status === 'rejected' ? 'Borrow request rejected' :
-                     'Borrow request status updated',
-              time: request.requestedAt || request.updatedAt,
-              icon: request.status === 'approved' ? 'info' : 'success',
-              details: {
-                item: request.itemName,
-                borrower: request.adviserName,
-                status: request.status
-              }
-            });
-          });
-        }
-
-        // Process equipment additions (simulate based on equipment count)
-        const equipmentData = equipmentSnapshot.val();
-        if (equipmentData) {
-          const equipmentCount = Object.keys(equipmentData).length;
-          // Add a simulated activity for equipment management
-          activities.push({
-            id: 'equipment_management',
-            type: 'equipment',
-            title: 'Equipment inventory updated',
-            time: new Date().toISOString(),
-            icon: 'success',
-            details: {
-              totalEquipment: equipmentCount
-            }
-          });
-        }
-
-        // Process announcements
+        // Process announcements (visible to everyone)
         const announcementsData = announcementsSnapshot.val();
         if (announcementsData) {
           Object.keys(announcementsData).forEach(key => {
@@ -394,13 +359,91 @@ export default function Dashboard() {
               details: {
                 title: announcement.title,
                 author: announcement.author
-              }
+              },
+              labId: announcement.labId // Include labId for filtering
             });
           });
         }
 
-        // Sort by time and take most recent 4
+        // Process borrow requests with role-based filtering
+        const borrowData = borrowSnapshot.val();
+        const categoriesData = categoriesSnapshot.val();
+        
+        if (borrowData) {
+          Object.keys(borrowData).forEach(key => {
+            const request = borrowData[key];
+            
+            // Check if this request should be visible to the current user
+            let shouldShow = false;
+            
+            if (isAdmin()) {
+              // Admin sees all requests
+              shouldShow = true;
+            } else if (isLaboratoryManager() && assignedLabIds) {
+              // Lab Manager only sees requests from their assigned laboratories
+              if (categoriesData) {
+                // Find the equipment category for this request
+                const category = Object.values(categoriesData).find(cat => cat.title === request.categoryName);
+                if (category && category.labId) {
+                  // Check if this lab is assigned to the current manager
+                  const lab = laboratories.find(lab => lab.labId === category.labId);
+                  if (lab && assignedLabIds.includes(lab.id)) {
+                    shouldShow = true;
+                  }
+                }
+              }
+            }
+            
+            if (shouldShow) {
+              activities.push({
+                id: `request_${key}`,
+                type: 'request',
+                title: request.status === 'approved' ? 'Borrow request approved' : 
+                       request.status === 'pending' ? 'New borrow request submitted' :
+                       request.status === 'rejected' ? 'Borrow request rejected' :
+                       request.status === 'released' ? 'Equipment released' :
+                       'Borrow request status updated',
+                time: request.requestedAt || request.updatedAt,
+                icon: request.status === 'approved' ? 'info' : 
+                      request.status === 'released' ? 'success' :
+                      request.status === 'rejected' ? 'warning' : 'success',
+                details: {
+                  item: request.itemName,
+                  borrower: request.adviserName,
+                  status: request.status,
+                  laboratory: request.laboratory
+                },
+                labId: request.labId
+              });
+            }
+          });
+        }
+
+        // Process equipment additions (only for admin)
+        if (isAdmin()) {
+          const equipmentData = equipmentSnapshot.val();
+          if (equipmentData) {
+            const equipmentCount = Object.keys(equipmentData).length;
+            activities.push({
+              id: 'equipment_management',
+              type: 'equipment',
+              title: 'Equipment inventory updated',
+              time: new Date().toISOString(),
+              icon: 'success',
+              details: {
+                totalEquipment: equipmentCount
+              }
+            });
+          }
+        }
+
+        // Sort by time and take most recent
         activities.sort((a, b) => new Date(b.time) - new Date(a.time));
+        
+        // Store all activities for "See All" modal
+        setAllActivities(activities);
+        
+        // Show only first 4 for recent activity
         setRecentActivity(activities.slice(0, 4));
 
       } catch (error) {
@@ -409,7 +452,7 @@ export default function Dashboard() {
     };
 
     loadRecentActivity();
-  }, []);
+  }, [isAdmin, isLaboratoryManager, getAssignedLaboratoryIds, laboratories]);
 
   const handleSectionChange = (section) => {
     console.log("Section changed to:", section); // Debug log
@@ -591,9 +634,20 @@ export default function Dashboard() {
 
               {/* Activity Summary */}
               <div className="activity-card">
-                <div className="activity-header">
-                  <h3>Recent Activity</h3>
-                  <p>Latest system activities</p>
+                <div className="activity-header-with-button">
+                  <div>
+                    <h3>Recent Activity</h3>
+                    <p>Latest system activities</p>
+                  </div>
+                  {allActivities.length > 0 && (
+                    <button 
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => setShowAllActivitiesModal(true)}
+                      title="View all activities"
+                    >
+                      See All ({allActivities.length})
+                    </button>
+                  )}
                 </div>
                 <div className="activity-list">
                   {recentActivity.length > 0 ? (
@@ -603,10 +657,23 @@ export default function Dashboard() {
                           {activity.icon === 'success' ? '✅' : 
                            activity.icon === 'info' ? '📋' :
                            activity.icon === 'warning' ? '⚠️' :
-                           activity.icon === 'primary' ? '👤' : '📋'}
+                           activity.icon === 'primary' ? '📢' : '📋'}
                         </div>
                         <div className="activity-content">
                           <div className="activity-title">{activity.title}</div>
+                          {activity.details && activity.details.item && (
+                            <div className="activity-details">
+                              {activity.type === 'request' && (
+                                <span className="activity-item-name">{activity.details.item}</span>
+                              )}
+                              {activity.details.borrower && (
+                                <span className="activity-borrower">by {activity.details.borrower}</span>
+                              )}
+                              {activity.details.laboratory && (
+                                <span className="activity-lab">Lab: {activity.details.laboratory}</span>
+                              )}
+                            </div>
+                          )}
                           <div className="activity-time">{formatTimeAgo(activity.time)}</div>
                         </div>
                       </div>
@@ -817,6 +884,51 @@ export default function Dashboard() {
           isOpen={showNotificationModal}
           onClose={() => setShowNotificationModal(false)}
         />
+      )}
+      
+      {showAllActivitiesModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{maxWidth: '800px', maxHeight: '80vh', overflow: 'auto'}}>
+            <div className="modal-header">
+              <h2>All Activities</h2>
+              <button onClick={() => setShowAllActivitiesModal(false)} className="modal-close-btn">×</button>
+            </div>
+            <div className="modal-body">
+              <div className="activity-list">
+                {allActivities.map((activity) => (
+                  <div key={activity.id} className="activity-item">
+                    <div className={`activity-icon ${activity.icon}`}>
+                      {activity.icon === 'success' ? '✅' : 
+                       activity.icon === 'info' ? '📋' :
+                       activity.icon === 'warning' ? '⚠️' :
+                       activity.icon === 'primary' ? '📢' : '📋'}
+                    </div>
+                    <div className="activity-content">
+                      <div className="activity-title">{activity.title}</div>
+                      {activity.details && (
+                        <div className="activity-details">
+                          {activity.details.item && (
+                            <span className="activity-item-name">{activity.details.item}</span>
+                          )}
+                          {activity.details.borrower && (
+                            <span className="activity-borrower">by {activity.details.borrower}</span>
+                          )}
+                          {activity.details.laboratory && (
+                            <span className="activity-lab">Lab: {activity.details.laboratory}</span>
+                          )}
+                          {activity.details.author && (
+                            <span className="activity-author">by {activity.details.author}</span>
+                          )}
+                        </div>
+                      )}
+                      <div className="activity-time">{formatDate(activity.time)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
