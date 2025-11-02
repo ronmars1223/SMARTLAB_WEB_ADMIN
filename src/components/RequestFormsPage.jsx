@@ -4,6 +4,7 @@ import { ref, onValue, update, remove, get } from "firebase/database";
 import { database } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { notifyNewRequest, notifyRequestApproved, notifyRequestRejected, notifyEquipmentReturned } from "../utils/notificationUtils";
+import { exportToPDF, printActivities } from "../utils/pdfUtils";
 import "../CSS/RequestFormsPage.css";
 
 export default function RequestFormsPage() {
@@ -470,6 +471,49 @@ export default function RequestFormsPage() {
         <div className="header-content">
           <h1 className="page-title">Request Forms Management</h1>
           <p className="page-subtitle">Review and manage user requests for equipment and services</p>
+        </div>
+        <div className="header-actions" style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+          <button 
+            className="action-button"
+            onClick={() => {
+              const formatRequests = (requests) => {
+                return requests.map((request, index) => [
+                  index + 1,
+                  request.itemName || 'N/A',
+                  getBorrowerName(request.userId) || 'N/A',
+                  request.adviserName || 'N/A',
+                  request.laboratory || 'N/A',
+                  request.categoryName || 'N/A',
+                  request.quantity || '1',
+                  request.status || 'N/A',
+                  formatDate(request.requestedAt || request.dateToBeUsed)
+                ]);
+              };
+              exportToPDF(filteredRequests, 'Request Forms', formatRequests);
+            }}
+          >
+            📄 Export PDF
+          </button>
+          <button 
+            className="action-button"
+            onClick={() => {
+              const formatRequests = (requests) => {
+                return requests.map((request) => ({
+                  itemName: request.itemName || 'N/A',
+                  borrower: getBorrowerName(request.userId) || 'N/A',
+                  adviserName: request.adviserName || 'N/A',
+                  laboratory: request.laboratory || 'N/A',
+                  categoryName: request.categoryName || 'N/A',
+                  quantity: request.quantity || '1',
+                  status: request.status || 'N/A',
+                  requestedAt: formatDate(request.requestedAt || request.dateToBeUsed)
+                }));
+              };
+              printActivities(filteredRequests, 'Request Forms', formatRequests);
+            }}
+          >
+            🖨️ Print
+          </button>
         </div>
       </div>
 

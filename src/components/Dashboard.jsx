@@ -13,6 +13,7 @@ import Analytics from "./Analytics";
 import LaboratoryManagement from "./LaboratoryManagement";
 import NotificationModal from "./NotificationModal";
 import { checkForOverdueEquipment } from "../utils/notificationUtils";
+import { exportToPDF, printActivities } from "../utils/pdfUtils";
 import "../CSS/Dashboard.css";
 
 export default function Dashboard() {
@@ -891,7 +892,45 @@ export default function Dashboard() {
           <div className="modal-content" style={{maxWidth: '800px', maxHeight: '80vh', overflow: 'auto'}}>
             <div className="modal-header">
               <h2>All Activities</h2>
-              <button onClick={() => setShowAllActivitiesModal(false)} className="modal-close-btn">×</button>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <button 
+                  onClick={() => {
+                    const formatActivities = (activities) => {
+                      return activities.map((activity, index) => [
+                        index + 1,
+                        activity.title || 'N/A',
+                        activity.details?.item || activity.details?.title || 'N/A',
+                        activity.details?.borrower || activity.details?.author || 'N/A',
+                        activity.details?.status || 'N/A',
+                        formatDate(activity.time)
+                      ]);
+                    };
+                    exportToPDF(allActivities, 'All Activities', formatActivities);
+                  }}
+                  className="btn btn-sm btn-primary"
+                  style={{ marginRight: '5px' }}
+                >
+                  📄 Export PDF
+                </button>
+                <button 
+                  onClick={() => {
+                    const formatActivities = (activities) => {
+                      return activities.map((activity) => ({
+                        title: activity.title || 'N/A',
+                        item: activity.details?.item || activity.details?.title || 'N/A',
+                        borrower: activity.details?.borrower || activity.details?.author || 'N/A',
+                        status: activity.details?.status || 'N/A',
+                        time: formatDate(activity.time)
+                      }));
+                    };
+                    printActivities(allActivities, 'All Activities', formatActivities);
+                  }}
+                  className="btn btn-sm btn-secondary"
+                >
+                  🖨️ Print
+                </button>
+                <button onClick={() => setShowAllActivitiesModal(false)} className="modal-close-btn">×</button>
+              </div>
             </div>
             <div className="modal-body">
               <div className="activity-list">

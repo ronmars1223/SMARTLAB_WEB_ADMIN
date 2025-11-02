@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { ref, onValue, get } from "firebase/database";
 import { database } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
+import { exportToPDF, printActivities } from "../utils/pdfUtils";
 import "../CSS/HistoryPage.css";
 
 export default function HistoryPage() {
@@ -425,10 +426,45 @@ export default function HistoryPage() {
       <div className="history-header">
         <h1 className="history-title">Equipment Borrowing History</h1>
         <div className="header-actions">
-          <button className="action-button">
-            📤 Export
+          <button 
+            className="action-button"
+            onClick={() => {
+              const formatHistory = (history) => {
+                return history.map((entry, index) => [
+                  index + 1,
+                  entry.action || 'N/A',
+                  entry.equipmentName || 'N/A',
+                  getBorrowerName(entry.userId) || 'N/A',
+                  entry.adviserName || 'N/A',
+                  entry.status || 'N/A',
+                  formatDate(entry.releasedDate) + ' ' + formatTime(entry.releasedDate),
+                  entry.returnDate ? (formatDate(entry.returnDate) + ' ' + formatTime(entry.returnDate)) : 'N/A',
+                  entry.condition || 'N/A'
+                ]);
+              };
+              exportToPDF(filteredHistory, 'Equipment Borrowing History', formatHistory);
+            }}
+          >
+            📄 Export PDF
           </button>
-          <button className="action-button">
+          <button 
+            className="action-button"
+            onClick={() => {
+              const formatHistory = (history) => {
+                return history.map((entry) => ({
+                  action: entry.action || 'N/A',
+                  equipmentName: entry.equipmentName || 'N/A',
+                  borrower: getBorrowerName(entry.userId) || 'N/A',
+                  adviserName: entry.adviserName || 'N/A',
+                  status: entry.status || 'N/A',
+                  releasedDate: formatDate(entry.releasedDate) + ' ' + formatTime(entry.releasedDate),
+                  returnDate: entry.returnDate ? (formatDate(entry.returnDate) + ' ' + formatTime(entry.returnDate)) : 'N/A',
+                  condition: entry.condition || 'N/A'
+                }));
+              };
+              printActivities(filteredHistory, 'Equipment Borrowing History', formatHistory);
+            }}
+          >
             🖨️ Print
           </button>
         </div>
