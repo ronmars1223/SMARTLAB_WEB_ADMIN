@@ -27,11 +27,11 @@ export default function NotificationModal({ isOpen, onClose }) {
             }));
 
             // Filter notifications for this laboratory manager
-            const assignedLabIds = getAssignedLaboratoryIds();
+            const assignedLabIds = getAssignedLaboratoryIds() || [];
             const filteredNotifications = notificationList.filter(notification => {
               // Check if notification is for this user or their assigned laboratories
               return notification.recipientUserId === user.uid || 
-                     (notification.labId && assignedLabIds.includes(notification.labId));
+                     (notification.labId && Array.isArray(assignedLabIds) && assignedLabIds.includes(notification.labId));
             });
 
             // Sort by timestamp (newest first)

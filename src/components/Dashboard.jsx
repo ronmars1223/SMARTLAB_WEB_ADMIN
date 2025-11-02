@@ -80,7 +80,7 @@ export default function Dashboard() {
         }));
         
         // Get assigned laboratory IDs for this user
-        const assignedLabIds = getAssignedLaboratoryIds();
+        const assignedLabIds = getAssignedLaboratoryIds() || [];
         
         // Count unread notifications for this user
         const unreadCount = notificationsList.filter(notification => {
@@ -90,7 +90,7 @@ export default function Dashboard() {
           if (notification.recipientUserId === user.uid) return true;
           
           // Check if notification is for one of their assigned laboratories
-          if (notification.labId && assignedLabIds.includes(notification.labId)) return true;
+          if (notification.labId && Array.isArray(assignedLabIds) && assignedLabIds.includes(notification.labId)) return true;
           
           return false;
         }).length;
@@ -344,7 +344,7 @@ export default function Dashboard() {
         ]);
 
         const activities = [];
-        const assignedLabIds = isLaboratoryManager() ? getAssignedLaboratoryIds() : [];
+        const assignedLabIds = isLaboratoryManager() ? (getAssignedLaboratoryIds() || []) : [];
 
         // Process announcements (visible to everyone)
         const announcementsData = announcementsSnapshot.val();
@@ -388,7 +388,7 @@ export default function Dashboard() {
                 if (category && category.labId) {
                   // Check if this lab is assigned to the current manager
                   const lab = laboratories.find(lab => lab.labId === category.labId);
-                  if (lab && assignedLabIds.includes(lab.id)) {
+                  if (lab && Array.isArray(assignedLabIds) && assignedLabIds.includes(lab.id)) {
                     shouldShow = true;
                   }
                 }
