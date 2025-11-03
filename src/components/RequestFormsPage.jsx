@@ -20,6 +20,8 @@ export default function RequestFormsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState("desc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   
   // Add these missing state variables
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -152,14 +154,16 @@ export default function RequestFormsPage() {
     localStorage.setItem('processedRequests', JSON.stringify(processedRequests));
   };
 
-  // Load requests from Firebase
+  // Load static data once on mount
   useEffect(() => {
     loadLaboratories();
     loadEquipmentData();
     loadUsers();
-    
+  }, []);
+
+  // Subscribe to borrow requests once
+  useEffect(() => {
     const borrowRequestsRef = ref(database, 'borrow_requests');
-    
     const unsubscribe = onValue(borrowRequestsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -167,19 +171,21 @@ export default function RequestFormsPage() {
           id: key,
           ...data[key]
         }));
-        
-        // Check for new requests and create notifications
-        checkForNewRequests(requestsList);
-        
         setAllRequests(requestsList);
       } else {
         setAllRequests([]);
       }
       setLoading(false);
     });
-
     return () => unsubscribe();
-  }, [equipmentData, laboratories]);
+  }, []);
+
+  // Check for new requests when dependencies are ready
+  useEffect(() => {
+    if (allRequests.length > 0 && equipmentData.length > 0 && laboratories.length > 0) {
+      checkForNewRequests(allRequests);
+    }
+  }, [allRequests, equipmentData, laboratories]);
 
   // Filter requests based on user role and assigned laboratories
   useEffect(() => {
@@ -270,6 +276,24 @@ export default function RequestFormsPage() {
         return aValue < bValue ? 1 : -1;
       }
     });
+
+  // Pagination calculations
+  const totalItems = filteredRequests.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const paginatedRequests = filteredRequests.slice(startIndex, endIndex);
+
+  useEffect(() => {
+    // Reset to first page when filters/search/sort change
+    setCurrentPage(1);
+  }, [searchTerm, filterStatus, filterType, sortBy, sortOrder]);
+
+  const goToPage = (page) => {
+    const target = Math.max(1, Math.min(page, totalPages));
+    setCurrentPage(target);
+  };
 
   const handleStatusUpdate = async (requestId, newStatus, returnDetails = null) => {
     try {
@@ -588,7 +612,7 @@ export default function RequestFormsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredRequests.map((request) => (
+                {paginatedRequests.map((request) => (
                   <tr key={request.id}>
                     <td className="item-name-cell">
                       <div className="item-info">
@@ -682,6 +706,43 @@ export default function RequestFormsPage() {
                 ))}
               </tbody>
             </table>
+
+            {/* Pagination Controls */}
+            <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', gap: '12px', flexWrap: 'wrap' }}>
+              <div className="pagination-info">
+                Showing {totalItems === 0 ? 0 : startIndex + 1}-{endIndex} of {totalItems}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  className="action-button"
+                  onClick={() => goToPage(safeCurrentPage - 1)}
+                  disabled={safeCurrentPage <= 1}
+                  title="Previous page"
+                >
+                  ← Prev
+                </button>
+                <span>Page {safeCurrentPage} of {totalPages}</span>
+                <button
+                  className="action-button"
+                  onClick={() => goToPage(safeCurrentPage + 1)}
+                  disabled={safeCurrentPage >= totalPages}
+                  title="Next page"
+                >
+                  Next →
+                </button>
+                <select
+                  value={pageSize}
+                  onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                  className="filter-select"
+                  title="Rows per page"
+                >
+                  <option value={5}>5 / page</option>
+                  <option value={10}>10 / page</option>
+                  <option value={20}>20 / page</option>
+                  <option value={50}>50 / page</option>
+                </select>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="empty-state">
