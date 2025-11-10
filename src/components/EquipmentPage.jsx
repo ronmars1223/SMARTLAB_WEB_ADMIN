@@ -31,7 +31,9 @@ export default function EquipmentPage() {
   const [categoryFormData, setCategoryFormData] = useState({
     title: "",
     description: "",
-    labId: ""
+    labId: "",
+    labRecordId: "",
+    labName: ""
   });
 
   const [equipmentFormData, setEquipmentFormData] = useState({
@@ -47,6 +49,9 @@ export default function EquipmentPage() {
     notes: "",
     categoryId: "",
     labId: "",
+    labRecordId: "",
+    laboratory: "",
+    quantity: "1",
     imageUrl: ""
   });
   
@@ -66,13 +71,29 @@ export default function EquipmentPage() {
             ...data[key]
           }));
           
+          const augmentedCategories = categoryList.map(category => {
+            if (category.labRecordId && category.labName) {
+              return category;
+            }
+
+            const matchingLab = laboratories.find(
+              lab => lab.id === category.labRecordId || lab.labId === category.labId
+            );
+
+            return {
+              ...category,
+              labRecordId: category.labRecordId || matchingLab?.id || "",
+              labName: category.labName || matchingLab?.labName || ""
+            };
+          });
+          
           // Filter categories based on user role and lab assignment
-          let filteredCategories = categoryList;
+          let filteredCategories = augmentedCategories;
           if (!isAdmin()) {
             const assignedLabIds = getAssignedLaboratoryIds();
             if (assignedLabIds) {
               // Filter categories to only show those from assigned laboratories
-              filteredCategories = categoryList.filter(category => {
+              filteredCategories = augmentedCategories.filter(category => {
                 const lab = laboratories.find(l => l.labId === category.labId);
                 return lab && assignedLabIds.includes(lab.id);
               });
@@ -162,6 +183,38 @@ export default function EquipmentPage() {
     }
   }, [selectedCategory]);
 
+  useEffect(() => {
+    if (!selectedCategory) return;
+
+    const category = categories.find(cat => cat.id === selectedCategory);
+    if (!category) return;
+
+    const matchedLab = laboratories.find(
+      lab => lab.id === category.labRecordId || lab.labId === category.labId
+    );
+
+    const resolvedLabId = category.labId || matchedLab?.labId || "";
+    const resolvedLabRecordId = category.labRecordId || matchedLab?.id || "";
+    const resolvedLabName = category.labName || matchedLab?.labName || "";
+
+    setEquipmentFormData(prev => {
+      if (
+        prev.labId === resolvedLabId &&
+        prev.labRecordId === resolvedLabRecordId &&
+        prev.laboratory === resolvedLabName
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        labId: resolvedLabId,
+        labRecordId: resolvedLabRecordId,
+        laboratory: resolvedLabName
+      };
+    });
+  }, [selectedCategory, categories, laboratories]);
+
   const fetchEquipments = (categoryId) => {
     try {
       const equipmentsRef = ref(database, `equipment_categories/${categoryId}/equipments`);
@@ -200,6 +253,18 @@ export default function EquipmentPage() {
 
   const handleCategoryInputChange = (e) => {
     const { name, value } = e.target;
+
+    if (name === "labId") {
+      const selectedLab = laboratories.find((lab) => lab.labId === value || lab.id === value);
+
+      setCategoryFormData(prev => ({
+        ...prev,
+        labId: value,
+        labRecordId: selectedLab?.id || "",
+        labName: selectedLab?.labName || ""
+      }));
+      return;
+    }
     
     setCategoryFormData(prev => ({
       ...prev,
@@ -213,9 +278,17 @@ export default function EquipmentPage() {
     let updatedData = { [name]: value };
     
     // Auto-populate Assigned To when laboratory is selected
-    if (name === 'labId' && value) {
-      const selectedLab = laboratories.find(lab => lab.labId === value);
-      
+    if (name === 'quantity') {
+      const sanitizedValue = value.replace(/[^\d]/g, "");
+      updatedData.quantity = sanitizedValue;
+    }
+
+    if (name === 'labId') {
+      const selectedLab = laboratories.find(lab => lab.labId === value || lab.id === value);
+
+      updatedData.labRecordId = selectedLab?.id || "";
+      updatedData.laboratory = selectedLab?.labName || "";
+
       if (selectedLab && selectedLab.managerUserId) {
         // Find the manager user
         const managerUser = users.find(user => user.id === selectedLab.managerUserId);
@@ -305,6 +378,7 @@ export default function EquipmentPage() {
 
     // Auto-assign labId for Lab Managers
     let submissionData = { ...categoryFormData };
+
     if (!isAdmin()) {
       const assignedLabIds = getAssignedLaboratoryIds();
       if (assignedLabIds && assignedLabIds.length > 0) {
@@ -312,7 +386,16 @@ export default function EquipmentPage() {
         const assignedLab = laboratories.find(lab => assignedLabIds.includes(lab.id));
         if (assignedLab) {
           submissionData.labId = assignedLab.labId;
+          submissionData.labRecordId = assignedLab.id;
+          submissionData.labName = assignedLab.labName || "";
         }
+      }
+    } else if (submissionData.labId) {
+      const selectedLab = laboratories.find((lab) => lab.labId === submissionData.labId || lab.id === submissionData.labId);
+      if (selectedLab) {
+        submissionData.labId = selectedLab.labId;
+        submissionData.labRecordId = selectedLab.id;
+        submissionData.labName = selectedLab.labName || "";
       }
     }
 
@@ -377,8 +460,41 @@ export default function EquipmentPage() {
         }
       }
       
+      const selectedCategoryData = categories.find(cat => cat.id === selectedCategory);
+      const categoryLabId = selectedCategoryData?.labId || "";
+      const categoryLabRecordId = selectedCategoryData?.labRecordId || "";
+      const categoryLabName = selectedCategoryData?.labName || "";
+
+      const matchedLab = laboratories.find(
+        lab =>
+          lab.id === categoryLabRecordId ||
+          lab.labId === categoryLabId ||
+          lab.labId === equipmentFormData.labId ||
+          lab.id === equipmentFormData.labRecordId
+      );
+
+      const resolvedLabId = categoryLabId || equipmentFormData.labId || matchedLab?.labId || "";
+      let resolvedLabRecordId = categoryLabRecordId || equipmentFormData.labRecordId || matchedLab?.id || "";
+      let resolvedLabName = categoryLabName || equipmentFormData.laboratory || matchedLab?.labName || "";
+
+      if (!resolvedLabRecordId && resolvedLabId) {
+        const labById = laboratories.find(lab => lab.labId === resolvedLabId || lab.id === resolvedLabId);
+        if (labById) {
+          resolvedLabRecordId = labById.id;
+          if (!resolvedLabName) {
+            resolvedLabName = labById.labName || "";
+          }
+        }
+      }
+
+      const parsedQuantity = Math.max(1, parseInt(equipmentFormData.quantity, 10) || 1);
+
       const equipmentData = {
         ...equipmentFormData,
+        quantity: parsedQuantity,
+        labId: resolvedLabId,
+        labRecordId: resolvedLabRecordId,
+        laboratory: resolvedLabName,
         categoryId: selectedCategory,
         imageUrl: imageUrl || ""
       };
@@ -426,8 +542,15 @@ export default function EquipmentPage() {
       const equipmentsRef = ref(database, `equipment_categories/${categoryId}/equipments`);
       onValue(equipmentsRef, async (snapshot) => {
         const data = snapshot.val();
-        const totalCount = data ? Object.keys(data).length : 0;
-        const availableCount = data ? Object.values(data).filter(eq => eq.status === 'Available').length : 0;
+        const totalCount = data
+          ? Object.values(data).reduce((sum, eq) => sum + (Number(eq.quantity) || 1), 0)
+          : 0;
+        const availableCount = data
+          ? Object.values(data).reduce((sum, eq) => {
+              const quantity = Number(eq.quantity) || 1;
+              return (eq.status === 'Available' || eq.status === 'available') ? sum + quantity : sum;
+            }, 0)
+          : 0;
         
         const categoryRef = ref(database, `equipment_categories/${categoryId}`);
         await update(categoryRef, {
@@ -445,7 +568,9 @@ export default function EquipmentPage() {
     setCategoryFormData({
       title: category.title || "",
       description: category.description || "",
-      labId: category.labId || ""
+      labId: category.labId || "",
+      labRecordId: category.labRecordId || "",
+      labName: category.labName || ""
     });
     setShowAddCategoryForm(true);
   };
@@ -478,6 +603,9 @@ export default function EquipmentPage() {
       notes: equipment.notes || "",
       categoryId: equipment.categoryId || "",
       labId: equipment.labId || "",
+      labRecordId: equipment.labRecordId || "",
+      laboratory: equipment.laboratory || "",
+      quantity: equipment.quantity ? String(equipment.quantity) : "1",
       imageUrl: equipment.imageUrl || ""
     });
     setEquipmentImage(null);
@@ -522,7 +650,9 @@ export default function EquipmentPage() {
     setCategoryFormData({
       title: "",
       description: "",
-      labId: ""
+      labId: "",
+      labRecordId: "",
+      labName: ""
     });
     setShowAddCategoryForm(false);
     setEditingCategory(null);
@@ -542,6 +672,9 @@ export default function EquipmentPage() {
       notes: "",
       categoryId: "",
       labId: "",
+      labRecordId: "",
+      laboratory: "",
+      quantity: "1",
       imageUrl: ""
     });
     setEquipmentImage(null);
@@ -865,6 +998,7 @@ export default function EquipmentPage() {
                       <th>Serial Number</th>
                       <th>Laboratory</th>
                       <th>Status</th>
+                      <th>Quantity</th>
                       <th>Condition</th>
                       <th>Location</th>
                       <th>Assigned To</th>
@@ -914,6 +1048,11 @@ export default function EquipmentPage() {
                               }}
                             >
                               {equipment.status}
+                            </span>
+                          </td>
+                          <td className="quantity-cell">
+                            <span className="quantity-badge">
+                              {Number(equipment.quantity) || 1}
                             </span>
                           </td>
                           <td>
@@ -1182,7 +1321,16 @@ export default function EquipmentPage() {
                   </select>
                 </div>
                 <div className="form-group">
-                  {/* Empty div for spacing */}
+                  <label className="form-label required">Quantity</label>
+                  <input
+                    type="number"
+                    name="quantity"
+                    min="1"
+                    value={equipmentFormData.quantity}
+                    onChange={handleEquipmentInputChange}
+                    className="form-input"
+                    required
+                  />
                 </div>
               </div>
 

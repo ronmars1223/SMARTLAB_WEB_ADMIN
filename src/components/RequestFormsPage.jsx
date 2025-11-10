@@ -1,6 +1,6 @@
 // src/components/RequestFormsPage.jsx
 import React, { useState, useEffect } from "react";
-import { ref, onValue, update, remove, get } from "firebase/database";
+import { ref, onValue, update, remove, get, push } from "firebase/database";
 import { database } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { notifyNewRequest, notifyRequestApproved, notifyRequestRejected, notifyEquipmentReturned } from "../utils/notificationUtils";
@@ -438,6 +438,89 @@ export default function RequestFormsPage() {
     });
   };
 
+  const recordHistoryEntry = async (request, returnDetails, returnedAt) => {
+    const historyRef = ref(database, 'history');
+    const matchingEquipment = equipmentData.find(eq => 
+      eq.equipmentName === request.itemName ||
+      eq.itemName === request.itemName ||
+      eq.name === request.itemName ||
+      eq.title === request.itemName
+    );
+
+    const laboratory = matchingEquipment
+      ? laboratories.find(lab => lab.labId === matchingEquipment.labId)
+      : laboratories.find(lab => lab.labName === request.laboratory || lab.labId === request.labId);
+
+    const conditionText = (() => {
+      switch (returnDetails?.condition) {
+        case 'good':
+          return 'Returned in good condition';
+        case 'damaged':
+          return 'Returned damaged';
+        case 'lost':
+        case 'missing':
+          return 'Item lost/missing';
+        default:
+          return 'Returned';
+      }
+    })();
+
+    const historyEntry = {
+      requestId: request.id,
+      itemId: request.itemId || '',
+      categoryId: request.categoryId || '',
+      categoryName: request.categoryName || '',
+      equipmentName: request.itemName || 'Unknown item',
+      borrower: getBorrowerName(request.userId),
+      userId: request.userId || '',
+      borrowerEmail: request.userEmail || '',
+      adviserName: request.adviserName || '',
+      quantity: request.quantity || 1,
+      laboratory: request.laboratory || laboratory?.labName || '',
+      labId: laboratory?.labId || matchingEquipment?.labId || request.labId || '',
+      labRecordId: laboratory?.id || '',
+      status: 'Returned',
+      action: 'Item Returned',
+      releasedDate: request.requestedAt || request.dateToBeUsed || returnedAt,
+      returnDate: returnedAt,
+      condition: conditionText,
+      timestamp: returnedAt,
+      processedBy: returnDetails?.processedBy || 'Admin',
+      returnDetails: returnDetails || null,
+      entryType: 'return'
+    };
+
+    const releaseTimestamp = request.releasedAt || request.updatedAt || request.requestedAt || returnedAt;
+
+    const releaseEntry = {
+      requestId: request.id,
+      itemId: request.itemId || '',
+      categoryId: request.categoryId || '',
+      categoryName: request.categoryName || '',
+      equipmentName: request.itemName || 'Unknown item',
+      borrower: getBorrowerName(request.userId),
+      userId: request.userId || '',
+      borrowerEmail: request.userEmail || '',
+      adviserName: request.adviserName || '',
+      quantity: request.quantity || 1,
+      laboratory: request.laboratory || laboratory?.labName || '',
+      labId: laboratory?.labId || matchingEquipment?.labId || request.labId || '',
+      labRecordId: laboratory?.id || '',
+      status: 'Released',
+      action: 'Item Released',
+      releasedDate: releaseTimestamp,
+      returnDate: null,
+      condition: 'Item released to borrower',
+      timestamp: releaseTimestamp,
+      processedBy: request.reviewedBy || 'Admin',
+      returnDetails: null,
+      entryType: 'release'
+    };
+
+    await push(historyRef, releaseEntry);
+    await push(historyRef, historyEntry);
+  };
+
   const handleReturnSubmit = async () => {
     if (!selectedRequest) return;
 
@@ -449,7 +532,21 @@ export default function RequestFormsPage() {
         processedBy: "Admin" // You can get actual admin name from auth
       };
 
+      const returnedAt = new Date().toISOString();
+
+      // Update status to returned to trigger notifications
       await handleStatusUpdate(selectedRequest.id, "returned", returnDetails);
+
+      // Record in history collection
+      await recordHistoryEntry(selectedRequest, returnDetails, returnedAt);
+
+      // Remove the request from active list
+      const requestRef = ref(database, `borrow_requests/${selectedRequest.id}`);
+      await remove(requestRef);
+
+      setAllRequests(prev => prev.filter(request => request.id !== selectedRequest.id));
+      setRequests(prev => prev.filter(request => request.id !== selectedRequest.id));
+
       closeReturnModal();
       closeDetailsModal();
       alert("Item marked as returned successfully!");

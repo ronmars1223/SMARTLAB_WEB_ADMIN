@@ -29,6 +29,13 @@ export default function Sidebar({ activeSection, onSectionChange }) {
       description: "Manage laboratory equipment"
     },
     {
+      id: "laboratories",
+      label: "Laboratories",
+      icon: "🧪",
+      roles: ["admin"],
+      description: "Manage laboratories and assignments"
+    },
+    {
       id: "request-forms",
       label: "Request Forms",
       icon: "📋",

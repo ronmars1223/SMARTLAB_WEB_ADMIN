@@ -1,5 +1,5 @@
 // src/components/Dashboard.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { ref, push, onValue, remove, update, get } from "firebase/database";
 import { database } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
@@ -42,6 +42,83 @@ export default function Dashboard() {
   const [allRequests, setAllRequests] = useState([]);
   const [equipmentData, setEquipmentData] = useState([]);
   const [laboratories, setLaboratories] = useState([]);
+
+  const normalizeText = (value) => (value || "").toString().trim().toLowerCase();
+
+  const requestBelongsToAssignedLabs = useCallback((request) => {
+    if (isAdmin()) return true;
+    const assignedLabIds = getAssignedLaboratoryIds?.() || [];
+    if (!assignedLabIds.length) return false;
+
+    const matchesAssigned = (lab) => {
+      if (!lab) return false;
+      return assignedLabIds.includes(lab.id) || assignedLabIds.includes(lab.labId) || assignedLabIds.includes(lab.labRecordId);
+    };
+
+    if (request.labRecordId && assignedLabIds.includes(request.labRecordId)) return true;
+    if (request.labId && assignedLabIds.includes(request.labId)) return true;
+
+    const labFromRequest = laboratories.find((lab) =>
+      (request.labId && (lab.id === request.labId || lab.labId === request.labId)) ||
+      (request.laboratory && normalizeText(lab.labName) === normalizeText(request.laboratory))
+    );
+    if (matchesAssigned(labFromRequest)) return true;
+
+    const equipment = equipmentData.find((eq) =>
+      eq.id === request.itemId ||
+      eq.equipmentId === request.itemId ||
+      eq.categoryId === request.categoryId ||
+      eq.name === request.itemName ||
+      eq.itemName === request.itemName ||
+      eq.title === request.itemName
+    );
+    if (equipment) {
+      if (equipment.labId && assignedLabIds.includes(equipment.labId)) return true;
+      const lab = laboratories.find((lab) => lab.labId === equipment.labId || lab.id === equipment.labId);
+      if (matchesAssigned(lab)) return true;
+    }
+
+    return false;
+  }, [isAdmin, getAssignedLaboratoryIds, laboratories, equipmentData]);
+
+  const equipmentBelongsToAssignedLabs = useCallback((item) => {
+    if (isAdmin()) return true;
+    const assignedLabIds = getAssignedLaboratoryIds?.() || [];
+    if (!assignedLabIds.length) return false;
+
+    const labIdentifiers = [
+      item.labRecordId,
+      item.labId,
+      item.laboratoryId,
+      item.laboratory,
+      item.assignedLabId
+    ].filter(Boolean);
+
+    if (labIdentifiers.some((id) => assignedLabIds.includes(id))) return true;
+
+    if (item.laboratory) {
+      const lab = laboratories.find((lab) => normalizeText(lab.labName) === normalizeText(item.laboratory));
+      if (lab && (assignedLabIds.includes(lab.id) || assignedLabIds.includes(lab.labId))) return true;
+    }
+
+    if (item.categoryId || item.id || item.name) {
+      const categoryEquipment = equipmentData.find((eq) =>
+        eq.id === item.id ||
+        eq.equipmentId === item.id ||
+        eq.categoryId === item.categoryId ||
+        eq.name === item.name ||
+        eq.itemName === item.itemName ||
+        eq.title === item.name
+      );
+      if (categoryEquipment) {
+        if (categoryEquipment.labId && assignedLabIds.includes(categoryEquipment.labId)) return true;
+        const lab = laboratories.find((lab) => lab.labId === categoryEquipment.labId || lab.id === categoryEquipment.labId);
+        if (lab && (assignedLabIds.includes(lab.id) || assignedLabIds.includes(lab.labId))) return true;
+      }
+    }
+
+    return false;
+  }, [isAdmin, getAssignedLaboratoryIds, laboratories, equipmentData]);
 
   // Load announcements from Firebase
   useEffect(() => {
@@ -121,34 +198,6 @@ export default function Dashboard() {
           setAllRequests(requestsList);
         }
 
-        // Load equipment data
-        const categoriesRef = ref(database, 'equipment_categories');
-        const categoriesSnapshot = await get(categoriesRef);
-        
-        if (categoriesSnapshot.exists()) {
-          const categoriesData = categoriesSnapshot.val();
-          const allEquipment = [];
-          
-          for (const categoryId in categoriesData) {
-            const equipmentsRef = ref(database, `equipment_categories/${categoryId}/equipments`);
-            const equipmentsSnapshot = await get(equipmentsRef);
-            
-            if (equipmentsSnapshot.exists()) {
-              const equipmentData = equipmentsSnapshot.val();
-              Object.keys(equipmentData).forEach(equipmentId => {
-                allEquipment.push({
-                  id: equipmentId,
-                  categoryId: categoryId,
-                  categoryName: categoriesData[categoryId].title,
-                  ...equipmentData[equipmentId]
-                });
-              });
-            }
-          }
-          
-          setEquipmentData(allEquipment);
-        }
-
         // Load laboratories
         const laboratoriesRef = ref(database, 'laboratories');
         const laboratoriesSnapshot = await get(laboratoriesRef);
@@ -167,6 +216,38 @@ export default function Dashboard() {
     };
 
     loadDataForOverdueCheck();
+  }, []);
+
+  useEffect(() => {
+    const categoriesRef = ref(database, 'equipment_categories');
+
+    const unsubscribe = onValue(categoriesRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const categoriesData = snapshot.val();
+        const allEquipment = [];
+
+        Object.keys(categoriesData).forEach((categoryId) => {
+          const category = categoriesData[categoryId] || {};
+          const equipments = category.equipments || {};
+
+          Object.keys(equipments).forEach((equipmentId) => {
+            const equipmentEntry = {
+              id: equipmentId,
+              categoryId,
+              categoryName: category.title,
+              ...equipments[equipmentId]
+            };
+            allEquipment.push(equipmentEntry);
+          });
+        });
+
+        setEquipmentData(allEquipment);
+      } else {
+        setEquipmentData([]);
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Periodic overdue equipment check (runs every hour)
@@ -190,20 +271,21 @@ export default function Dashboard() {
   useEffect(() => {
     // Load borrow requests for statistics
     const borrowRequestsRef = ref(database, 'borrow_requests');
-    const equipmentRef = ref(database, 'equipment');
 
     const unsubscribeBorrowRequests = onValue(borrowRequestsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const requests = Object.values(data);
-        
+        let requests = Object.values(data);
+        if (!isAdmin()) {
+          requests = requests.filter(requestBelongsToAssignedLabs);
+        }
+
         // Calculate statistics
         const pendingCount = requests.filter(req => req.status === 'pending').length;
         const borrowedCount = requests.filter(req => req.status === 'in_progress' || req.status === 'approved').length;
-        
-        // Simulate additional stats (you can replace with real data)
+
         const overdueCount = requests.filter(req => {
-          if (req.dateToReturn && req.status === 'approved') {
+          if (req.dateToReturn && (req.status === 'approved' || req.status === 'released' || req.status === 'in_progress')) {
             return new Date(req.dateToReturn) < new Date();
           }
           return false;
@@ -223,17 +305,15 @@ export default function Dashboard() {
 
         setBorrowingData(chartData);
 
-        // Calculate real adviser vs student borrowing statistics
+        // Calculate adviser vs student borrowing statistics
         let adviserBorrowings = 0;
         let studentBorrowings = 0;
         
         requests.forEach(req => {
-          if (req.status === 'in_progress' || req.status === 'approved') {
-            // Enhanced user type detection similar to HistoryPage
+          if (['in_progress', 'approved', 'released'].includes(req.status)) {
             const borrowerName = req.adviserName?.toLowerCase() || '';
             const userEmail = req.userEmail?.toLowerCase() || '';
             
-            // Check for faculty indicators
             const facultyNamePatterns = [
               'prof', 'professor', 'dr', 'doctor', 'mr', 'ms', 'mrs', 'sir', 'teacher',
               'instructor', 'lecturer', 'dean', 'director', 'head', 'coordinator'
@@ -276,23 +356,15 @@ export default function Dashboard() {
           borrowedByAdviser: adviserBorrowings,
           borrowedByStudents: studentBorrowings
         }));
-      }
-    });
-
-    // Load equipment data
-    const unsubscribeEquipment = onValue(equipmentRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const equipment = Object.values(data);
-        const totalEquipment = equipment.length;
-        const inStock = equipment.filter(item => item.status === 'available').length;
-        const needMaintenance = equipment.filter(item => item.status === 'maintenance').length;
-
+      } else {
+        setBorrowingData([]);
         setDashboardStats(prev => ({
           ...prev,
-          totalEquipment,
-          itemsInStock: inStock,
-          needMaintenance
+          pendingRequests: 0,
+          borrowedItems: 0,
+          overdueItems: 0,
+          borrowedByAdviser: 0,
+          borrowedByStudents: 0
         }));
       }
     });
@@ -301,8 +373,11 @@ export default function Dashboard() {
     const unsubscribeUsers = onValue(borrowRequestsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        const requests = Object.values(data);
-        // Get unique users from borrow requests
+        let requests = Object.values(data);
+        if (!isAdmin()) {
+          requests = requests.filter(requestBelongsToAssignedLabs);
+        }
+
         const uniqueUsers = new Set();
         requests.forEach(req => {
           if (req.userEmail) uniqueUsers.add(req.userEmail);
@@ -313,15 +388,48 @@ export default function Dashboard() {
           ...prev,
           totalUsers: uniqueUsers.size
         }));
+      } else {
+        setDashboardStats(prev => ({
+          ...prev,
+          totalUsers: 0
+        }));
       }
     });
 
     return () => {
       unsubscribeBorrowRequests();
-      unsubscribeEquipment();
       unsubscribeUsers();
     };
   }, []);
+
+  useEffect(() => {
+    let equipmentList = equipmentData;
+    if (!isAdmin()) {
+      equipmentList = equipmentList.filter(equipmentBelongsToAssignedLabs);
+    }
+
+    const totalEquipment = equipmentList.reduce((sum, item) => {
+      const quantity = Number(item.quantity) || 1;
+      return sum + quantity;
+    }, 0);
+
+    const inStock = equipmentList.reduce((sum, item) => {
+      const quantity = Number(item.quantity) || 1;
+      return normalizeText(item.status) === 'available' ? sum + quantity : sum;
+    }, 0);
+
+    const needMaintenance = equipmentList.reduce((sum, item) => {
+      const quantity = Number(item.quantity) || 1;
+      return normalizeText(item.status) === 'maintenance' ? sum + quantity : sum;
+    }, 0);
+
+    setDashboardStats(prev => ({
+      ...prev,
+      totalEquipment,
+      itemsInStock: inStock,
+      needMaintenance
+    }));
+  }, [equipmentData, isAdmin, equipmentBelongsToAssignedLabs, getAssignedLaboratoryIds]);
 
   // Load recent activity data
   useEffect(() => {

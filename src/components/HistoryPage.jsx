@@ -9,6 +9,7 @@ import "../CSS/HistoryPage.css";
 export default function HistoryPage() {
   const { isAdmin, getAssignedLaboratoryIds } = useAuth();
   const [historyData, setHistoryData] = useState([]);
+  const [allHistoryEntries, setAllHistoryEntries] = useState([]);
   const [equipmentData, setEquipmentData] = useState([]);
   const [laboratories, setLaboratories] = useState([]);
   const [users, setUsers] = useState([]);
@@ -110,113 +111,70 @@ export default function HistoryPage() {
     loadLaboratories();
     loadEquipmentData();
     loadUsers();
-    const borrowRequestsRef = ref(database, 'borrow_requests');
-    
-    const unsubscribe = onValue(borrowRequestsRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const historyList = [];
-        
-        // Process borrow requests into history entries
-        Object.keys(data).forEach(key => {
-          const request = data[key];
-          
-          // Create entry for initial request
-          historyList.push({
-            id: `${key}_created`,
-            action: "Item Released",
-            equipmentName: request.itemName,
-            borrower: request.adviserName,
-            userId: request.userId,
-            adviserName: request.adviserName,
-            status: request.status || "Released",
-            releasedDate: request.requestedAt || request.dateToBeUsed,
-            returnDate: request.dateToReturn,
-            condition: "Excellent condition, all parts intact",
-            timestamp: request.requestedAt || request.dateToBeUsed,
-            details: {
-              requestId: key,
-              originalRequest: request,
-              action: "released",
-              previousStatus: null,
-              newStatus: request.status || "Released"
-            }
-          });
 
-          // Create entry for status updates if updatedAt exists
-          if (request.updatedAt && request.updatedAt !== request.requestedAt) {
-            const isReturned = request.status === "completed" || request.status === "returned";
-            const condition = isReturned && request.returnDetails 
-              ? `${request.returnDetails.condition === "good" ? "Good" : request.returnDetails.condition === "damaged" ? "Damaged" : "Lost/Missing"} condition${request.returnDetails.delayReason === "late" ? " (Late return)" : request.returnDetails.delayReason === "early" ? " (Early return)" : ""}`
-              : isReturned ? "Cleaned and recalibrated" : "Good condition";
-            
-            historyList.push({
-              id: `${key}_updated`,
-              action: isReturned ? "Item Returned" : "Status Updated",
-              equipmentName: request.itemName,
-              borrower: request.adviserName,
-              userId: request.userId,
-              adviserName: request.adviserName,
-              status: isReturned ? "Returned" : request.status,
-              releasedDate: request.requestedAt,
-              returnDate: isReturned ? (request.returnedAt || request.updatedAt) : request.dateToReturn,
-              condition: condition,
-              timestamp: request.updatedAt,
-              details: {
-                requestId: key,
-                originalRequest: request,
-                action: "status_updated",
-                newStatus: request.status,
-                reviewedBy: request.reviewedBy,
-                returnDetails: request.returnDetails || null
-              }
-            });
-          }
-        });
+    const historyRef = ref(database, 'history');
+    const unsubscribe = onValue(historyRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const entries = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
 
-        // Sort by timestamp, newest first
-        historyList.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        
-        // Filter history based on user role and assigned laboratories
-        let filteredHistory = historyList;
-        if (!isAdmin()) {
-          const assignedLabIds = getAssignedLaboratoryIds();
-          if (assignedLabIds && equipmentData.length > 0 && laboratories.length > 0) {
-            // Filter history to only show entries from assigned laboratories
-            filteredHistory = historyList.filter(historyEntry => {
-              // Find the equipment that matches this history entry
-              const matchingEquipment = equipmentData.find(equipment => 
-                equipment.equipmentName === historyEntry.equipmentName || 
-                equipment.itemName === historyEntry.equipmentName ||
-                equipment.name === historyEntry.equipmentName ||
-                equipment.title === historyEntry.equipmentName
-              );
-              
-              if (matchingEquipment && matchingEquipment.labId) {
-                // Find the laboratory that matches this equipment's labId
-                const laboratory = laboratories.find(lab => lab.labId === matchingEquipment.labId);
-                
-                if (laboratory) {
-                  // Check if this laboratory is assigned to the current user
-                  return assignedLabIds.includes(laboratory.id);
-                }
-              }
-              
-              // If no matching equipment or laboratory found, don't show the history entry
-              return false;
-            });
-          }
-        }
-        
-        setHistoryData(filteredHistory);
+        entries.sort((a, b) => new Date(b.timestamp || b.returnDate || b.releasedDate || 0) - new Date(a.timestamp || a.returnDate || a.releasedDate || 0));
+        setAllHistoryEntries(entries);
       } else {
-        setHistoryData([]);
+        setAllHistoryEntries([]);
       }
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (allHistoryEntries.length === 0) {
+      setHistoryData([]);
+      return;
+    }
+
+    let filteredHistory = [...allHistoryEntries];
+
+    if (!isAdmin()) {
+      const assignedLabIds = getAssignedLaboratoryIds();
+      if (assignedLabIds && assignedLabIds.length > 0) {
+        filteredHistory = filteredHistory.filter(entry => {
+          if (entry.labRecordId && assignedLabIds.includes(entry.labRecordId)) {
+            return true;
+          }
+          if (entry.labId && assignedLabIds.includes(entry.labId)) {
+            return true;
+          }
+
+          // Fallback: match via equipment dataset
+          const matchingEquipment = equipmentData.find(equipment => 
+            equipment.equipmentName === entry.equipmentName ||
+            equipment.itemName === entry.equipmentName ||
+            equipment.name === entry.equipmentName ||
+            equipment.title === entry.equipmentName
+          );
+
+          if (matchingEquipment && matchingEquipment.labId) {
+            const laboratory = laboratories.find(lab => lab.labId === matchingEquipment.labId);
+            if (laboratory) {
+              return assignedLabIds.includes(laboratory.id) || assignedLabIds.includes(laboratory.labId);
+            }
+          }
+
+          return false;
+        });
+      } else {
+        filteredHistory = [];
+      }
+    }
+
+    setHistoryData(filteredHistory);
+  }, [allHistoryEntries, isAdmin, getAssignedLaboratoryIds, equipmentData, laboratories]);
 
   // Filter and sort history data
   const filteredHistory = historyData.filter(entry => {
