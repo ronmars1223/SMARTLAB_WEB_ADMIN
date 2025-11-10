@@ -29,31 +29,24 @@ export default function Sidebar({ activeSection, onSectionChange }) {
       description: "Manage laboratory equipment"
     },
     {
-      id: "laboratories",
-      label: "Laboratories",
-      icon: "🧪",
-      roles: ["admin"], // Only admins can manage laboratories
-      description: "Manage laboratories and assignments"
-    },
-    {
       id: "request-forms",
       label: "Request Forms",
       icon: "📋",
-      roles: ["admin", "laboratory_manager"],
+      roles: ["laboratory_manager"],
       description: "View and manage borrow requests"
     },
     {
       id: "history",
       label: "History",
       icon: "📊",
-      roles: ["admin", "laboratory_manager"],
+      roles: ["laboratory_manager"],
       description: "View equipment usage history"
     },
     {
       id: "analytics",
       label: "Analytics",
       icon: "📈",
-      roles: ["admin", "laboratory_manager"],
+      roles: ["laboratory_manager"],
       description: "View system analytics and reports"
     },
     {
@@ -117,7 +110,7 @@ export default function Sidebar({ activeSection, onSectionChange }) {
         ))}
 
         {/* Restricted menu items (shown as disabled) */}
-        {restrictedItems.length > 0 && !isCollapsed && (
+        {restrictedItems.length > 0 && !isCollapsed && userRole !== 'admin' && (
           <>
             <div className="sidebar-divider"></div>
             <div className="restricted-section">

@@ -777,10 +777,13 @@ export default function Dashboard() {
         return <LaboratoryManagement />;
       
       case "request-forms":
-        return <RequestFormsPage />;
+        return isLaboratoryManager() ? <RequestFormsPage /> : null;
       
       case "history":
-        return <HistoryPage />;
+        return isLaboratoryManager() ? <HistoryPage /> : null;
+      
+      case "analytics":
+        return isLaboratoryManager() ? <Analytics /> : null;
       
       case "users":
         if (!isAdmin()) {
@@ -794,9 +797,6 @@ export default function Dashboard() {
           );
         }
         return <UserManagement onRedirectToUsers={() => setActiveSection("users")} />;
-      
-      case "analytics":
-        return <Analytics />;
       
       case "profile":
         return (
