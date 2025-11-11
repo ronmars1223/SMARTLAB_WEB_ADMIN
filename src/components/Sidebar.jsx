@@ -86,7 +86,7 @@ export default function Sidebar({ activeSection, onSectionChange }) {
     <div className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-header">
         <h2 className="sidebar-title">
-          {userRole === 'admin' ? 'Admin Panel' : 'Lab Manager Panel'}
+          {userRole === 'admin' ? 'Admin Panel' : 'Lab In Charge Panel'}
         </h2>
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}

@@ -23,6 +23,13 @@ export default function LaboratoryManagement() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
+  const getRoleLabel = (role) => {
+    if (!role) return "Unknown";
+    if (role === "laboratory_manager") return "Lab In Charge";
+    if (role === "admin") return "Admin";
+    return role.charAt(0).toUpperCase() + role.slice(1);
+  };
+
   const [laboratoryFormData, setLaboratoryFormData] = useState({
     labName: "",
     description: "",
@@ -644,17 +651,17 @@ export default function LaboratoryManagement() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Laboratory Manager</label>
+                  <label className="form-label">Lab In Charge</label>
                   <select
                     name="managerUserId"
                     value={laboratoryFormData.managerUserId}
                     onChange={handleInputChange}
                     className="form-select"
                   >
-                    <option value="">Select Manager</option>
+                    <option value="">Select Lab In Charge</option>
                     {users.map(user => (
                       <option key={user.id} value={user.id}>
-                        {user.name} ({user.role})
+                        {user.name} ({getRoleLabel(user.role)})
                       </option>
                     ))}
                   </select>

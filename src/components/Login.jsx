@@ -44,7 +44,7 @@
           const userData = snapshot.val();
 
           if (userData.role === "admin" || userData.role === "laboratory_manager") {
-            const roleDisplay = userData.role === "admin" ? "Admin" : "Laboratory Manager";
+            const roleDisplay = userData.role === "admin" ? "Admin" : "Lab In Charge";
             setSuccess(`Logged in as ${roleDisplay}!`);
             // Small delay to show success message
             setTimeout(() => {
@@ -53,7 +53,7 @@
           } else {
             // ❌ Invalid role - sign out and show error
             await signOut(auth);
-            setError("Access denied. Admin or Laboratory Manager privileges required.");
+            setError("Access denied. Admin or Lab In Charge privileges required.");
           }
         } else {
           await signOut(auth);

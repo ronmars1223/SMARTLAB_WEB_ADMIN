@@ -1369,8 +1369,8 @@ export default function EquipmentPage() {
                 />
                 <small className="form-help">
                   {equipmentFormData.assignedTo 
-                    ? `Automatically assigned to laboratory manager: ${equipmentFormData.assignedTo}`
-                    : "Select a laboratory to automatically assign to its manager"
+                    ? `Automatically assigned to Lab In Charge: ${equipmentFormData.assignedTo}`
+                    : "Select a laboratory to automatically assign it to the Lab In Charge"
                   }
                 </small>
               </div>

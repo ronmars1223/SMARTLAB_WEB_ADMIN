@@ -48,6 +48,12 @@ export default function UserManagement({ onRedirectToUsers }) {
   });
 
   const roles = ["admin", "laboratory_manager", "student"];
+  const roleLabels = {
+    admin: "Admin",
+    laboratory_manager: "Lab In Charge",
+    student: "Student"
+  };
+  const getRoleLabel = (role) => roleLabels[role] || role;
   const statuses = ["Active", "Inactive", "Pending"];
 
   // Fetch users from Firebase Realtime Database
@@ -423,7 +429,7 @@ export default function UserManagement({ onRedirectToUsers }) {
           >
             <option value="All">All Roles</option>
             {roles.map(role => (
-              <option key={role} value={role}>{role}</option>
+              <option key={role} value={role}>{getRoleLabel(role)}</option>
             ))}
           </select>
           
@@ -476,7 +482,7 @@ export default function UserManagement({ onRedirectToUsers }) {
                 <td>{user.email}</td>
                 <td>
                   <span className={`role-badge role-${user.role.toLowerCase()}`}>
-                    {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                    {getRoleLabel(user.role)}
                   </span>
                 </td>
                 <td>
@@ -612,7 +618,7 @@ export default function UserManagement({ onRedirectToUsers }) {
                     className="form-select"
                   >
                     {roles.map(role => (
-                      <option key={role} value={role}>{role}</option>
+                      <option key={role} value={role}>{getRoleLabel(role)}</option>
                     ))}
                   </select>
                 </div>
