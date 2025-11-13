@@ -31,7 +31,9 @@ export default function Dashboard() {
     totalUsers: 0,
     pendingRequests: 0,
     borrowedItems: 0,
+    borrowedEquipment: 0, // Equipment currently borrowed (from quantity_borrowed)
     itemsInStock: 0,
+    availableEquipment: 0, // Available equipment (total - borrowed)
     needMaintenance: 0,
     overdueItems: 0,
     borrowedByAdviser: 0,
@@ -413,6 +415,16 @@ export default function Dashboard() {
       return sum + quantity;
     }, 0);
 
+    // Calculate borrowed items using quantity_borrowed field
+    const borrowedEquipment = equipmentList.reduce((sum, item) => {
+      const quantityBorrowed = Number(item.quantity_borrowed) || 0;
+      return sum + quantityBorrowed;
+    }, 0);
+
+    // Calculate available items (total - borrowed)
+    const availableEquipment = totalEquipment - borrowedEquipment;
+
+    // Calculate items in stock (based on status, for backward compatibility)
     const inStock = equipmentList.reduce((sum, item) => {
       const quantity = Number(item.quantity) || 1;
       return normalizeText(item.status) === 'available' ? sum + quantity : sum;
@@ -426,7 +438,9 @@ export default function Dashboard() {
     setDashboardStats(prev => ({
       ...prev,
       totalEquipment,
-      itemsInStock: inStock,
+      itemsInStock: availableEquipment, // Use calculated available instead of status-based
+      availableEquipment, // Available equipment count
+      borrowedEquipment, // Add borrowed equipment count
       needMaintenance
     }));
   }, [equipmentData, isAdmin, equipmentBelongsToAssignedLabs, getAssignedLaboratoryIds]);
@@ -698,9 +712,27 @@ export default function Dashboard() {
 
             {/* Secondary Statistics Grid */}
             <div className="secondary-stats-grid">
+              <div className="stat-card-small success">
+                <div className="stat-number">{dashboardStats.availableEquipment.toLocaleString()}</div>
+                <div className="stat-label">Available Equipment</div>
+                <div className="stat-subtext" style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                  {dashboardStats.totalEquipment > 0 
+                    ? `${Math.round((dashboardStats.availableEquipment / dashboardStats.totalEquipment) * 100)}% of total`
+                    : 'No equipment'}
+                </div>
+              </div>
+              <div className="stat-card-small info">
+                <div className="stat-number">{dashboardStats.borrowedEquipment.toLocaleString()}</div>
+                <div className="stat-label">Currently Borrowed</div>
+                <div className="stat-subtext" style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                  {dashboardStats.totalEquipment > 0 
+                    ? `${Math.round((dashboardStats.borrowedEquipment / dashboardStats.totalEquipment) * 100)}% of total`
+                    : 'No equipment'}
+                </div>
+              </div>
               <div className="stat-card-small">
-                <div className="stat-number">{dashboardStats.itemsInStock.toLocaleString()}</div>
-                <div className="stat-label">Total Items in Stock</div>
+                <div className="stat-number">{dashboardStats.totalEquipment.toLocaleString()}</div>
+                <div className="stat-label">Total Equipment</div>
               </div>
               <div className="stat-card-small warning">
                 <div className="stat-number">{dashboardStats.needMaintenance}</div>
@@ -878,8 +910,7 @@ export default function Dashboard() {
         );
       
       case "equipments":
-        console.log("Rendering EquipmentPage component"); // Debug log
-        return <EquipmentPage />;
+        return isLaboratoryManager() ? <EquipmentPage /> : null;
       
       case "laboratories":
         return <LaboratoryManagement />;

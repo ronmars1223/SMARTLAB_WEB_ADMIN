@@ -8,7 +8,7 @@ import EquipmentMaintenance from "./equipment/EquipmentMaintenance";
 import "../CSS/Equipment.css";
 
 export default function EquipmentPage() {
-  const { isAdmin, getAssignedLaboratoryIds } = useAuth();
+  const { isAdmin, getAssignedLaboratoryIds, assignedLaboratories, isLaboratoryManager } = useAuth();
   const [categories, setCategories] = useState([]);
   const [laboratories, setLaboratories] = useState([]);
   const [equipments, setEquipments] = useState([]);
@@ -182,6 +182,14 @@ export default function EquipmentPage() {
       setEquipments([]);
     }
   }, [selectedCategory]);
+
+  // Debug: Check assigned laboratories
+  useEffect(() => {
+    if (isLaboratoryManager()) {
+      console.log('[EquipmentPage] Lab Manager - Assigned Laboratories:', assignedLaboratories);
+      console.log('[EquipmentPage] isLaboratoryManager:', isLaboratoryManager());
+    }
+  }, [assignedLaboratories, isLaboratoryManager]);
 
   useEffect(() => {
     if (!selectedCategory) return;
@@ -767,8 +775,83 @@ export default function EquipmentPage() {
     <div className="equipment-page">
       {/* Header */}
       <div className="page-header">
-        <h1 className="page-title">Laboratory Equipment Management</h1>
-        <p className="page-subtitle">Manage equipment categories, individual laboratory equipment, and maintenance schedules.</p>
+        <div style={{ flex: 1 }}>
+          <h1 className="page-title">Laboratory Equipment Management</h1>
+          <p className="page-subtitle">Manage equipment categories, individual laboratory equipment, and maintenance schedules.</p>
+        </div>
+        {isLaboratoryManager() && (
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'flex-end',
+            gap: '8px',
+            minWidth: '200px',
+            flexShrink: 0,
+            padding: '12px',
+            backgroundColor: '#f9fafb',
+            borderRadius: '8px',
+            border: '1px solid #e5e7eb'
+          }}>
+            {assignedLaboratories && assignedLaboratories.length > 0 ? (
+              <>
+                <div style={{ 
+                  fontSize: '11px', 
+                  color: '#6b7280', 
+                  fontWeight: '600',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  marginBottom: '4px'
+                }}>
+                  Assigned Laboratory{assignedLaboratories.length > 1 ? 'ies' : ''}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end', width: '100%' }}>
+                  {assignedLaboratories.map((lab) => (
+                    <div key={lab.id} style={{
+                      backgroundColor: '#14b8a6',
+                      color: 'white',
+                      padding: '8px 16px',
+                      borderRadius: '20px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      whiteSpace: 'nowrap',
+                      boxShadow: '0 2px 4px rgba(20, 184, 166, 0.2)'
+                    }}>
+                      <span>🧪</span>
+                      <span>{lab.labName || lab.labId || 'Unknown Lab'}</span>
+                      {lab.labId && (
+                        <span style={{ 
+                          fontSize: '11px', 
+                          opacity: 0.95,
+                          backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                          padding: '3px 10px',
+                          borderRadius: '12px',
+                          fontWeight: '500'
+                        }}>
+                          {lab.labId}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div style={{
+                backgroundColor: '#fef3c7',
+                color: '#92400e',
+                padding: '8px 16px',
+                borderRadius: '20px',
+                fontSize: '13px',
+                fontWeight: '500',
+                border: '1px solid #fde68a'
+              }}>
+                ⚠️ No laboratory assigned
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Navigation Tabs */}
@@ -795,6 +878,87 @@ export default function EquipmentPage() {
           Equipment Maintenance
         </button>
       </div>
+
+      {/* Equipment Summary - Show for Lab In Charge */}
+      {isLaboratoryManager() && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '16px',
+          marginBottom: '24px'
+        }}>
+          {(() => {
+            const totalEquipment = equipments.reduce((sum, item) => {
+              const quantity = Number(item.quantity) || 1;
+              return sum + quantity;
+            }, 0);
+            
+            const borrowedEquipment = equipments.reduce((sum, item) => {
+              const quantityBorrowed = Number(item.quantity_borrowed) || 0;
+              return sum + quantityBorrowed;
+            }, 0);
+            
+            const availableEquipment = totalEquipment - borrowedEquipment;
+            
+            return (
+              <>
+                <div style={{
+                  backgroundColor: '#f0fdf4',
+                  border: '2px solid #10b981',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#10b981', marginBottom: '8px' }}>
+                    {totalEquipment.toLocaleString()}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '500' }}>
+                    Total Equipment
+                  </div>
+                </div>
+                <div style={{
+                  backgroundColor: '#ecfdf5',
+                  border: '2px solid #10b981',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#10b981', marginBottom: '8px' }}>
+                    {availableEquipment.toLocaleString()}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '500' }}>
+                    Available Equipment
+                  </div>
+                  {totalEquipment > 0 && (
+                    <div style={{ fontSize: '11px', color: '#059669', marginTop: '4px' }}>
+                      {Math.round((availableEquipment / totalEquipment) * 100)}% available
+                    </div>
+                  )}
+                </div>
+                <div style={{
+                  backgroundColor: '#fef3c7',
+                  border: '2px solid #f59e0b',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#f59e0b', marginBottom: '8px' }}>
+                    {borrowedEquipment.toLocaleString()}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '500' }}>
+                    Currently Borrowed
+                  </div>
+                  {totalEquipment > 0 && (
+                    <div style={{ fontSize: '11px', color: '#d97706', marginTop: '4px' }}>
+                      {Math.round((borrowedEquipment / totalEquipment) * 100)}% borrowed
+                    </div>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Categories Tab */}
       {activeTab === "categories" && (
@@ -1051,9 +1215,22 @@ export default function EquipmentPage() {
                             </span>
                           </td>
                           <td className="quantity-cell">
-                            <span className="quantity-badge">
-                              {Number(equipment.quantity) || 1}
-                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <span className="quantity-badge">
+                                Total: {Number(equipment.quantity) || 1}
+                              </span>
+                              {equipment.quantity_borrowed !== undefined && equipment.quantity_borrowed !== null && (
+                                <span style={{ 
+                                  fontSize: '11px',
+                                  color: (Number(equipment.quantity) || 1) - (equipment.quantity_borrowed || 0) > 0 
+                                    ? '#10b981' 
+                                    : '#ef4444',
+                                  fontWeight: '500'
+                                }}>
+                                  Available: {(Number(equipment.quantity) || 1) - (equipment.quantity_borrowed || 0)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td>
                             <span className={`condition-badge ${equipment.condition?.toLowerCase()}`}>

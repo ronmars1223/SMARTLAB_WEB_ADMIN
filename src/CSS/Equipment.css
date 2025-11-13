@@ -14,10 +14,14 @@
 
 /* Page header */
 .page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   margin-bottom: 30px;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+  gap: 20px;
 }
 
 .page-title {

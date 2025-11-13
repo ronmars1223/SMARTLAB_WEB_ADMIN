@@ -25,7 +25,7 @@ export default function Sidebar({ activeSection, onSectionChange }) {
       id: "equipments",
       label: "Equipments", 
       icon: "⚙️",
-      roles: ["admin", "laboratory_manager"],
+      roles: ["laboratory_manager"],
       description: "Manage laboratory equipment"
     },
     {
@@ -116,8 +116,8 @@ export default function Sidebar({ activeSection, onSectionChange }) {
           </button>
         ))}
 
-        {/* Restricted menu items (shown as disabled) */}
-        {restrictedItems.length > 0 && !isCollapsed && userRole !== 'admin' && (
+        {/* Restricted menu items (shown as disabled) - Only show for non-admin users */}
+        {restrictedItems.length > 0 && !isCollapsed && !isAdmin() && (
           <>
             <div className="sidebar-divider"></div>
             <div className="restricted-section">

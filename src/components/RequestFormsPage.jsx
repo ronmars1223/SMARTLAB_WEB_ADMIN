@@ -17,6 +17,8 @@ export default function RequestFormsPage() {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterType, setFilterType] = useState("All");
+  const [filterBatch, setFilterBatch] = useState("All"); // "All", "Batch", "Individual"
+  const [groupByBatch, setGroupByBatch] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState("desc");
@@ -27,6 +29,8 @@ export default function RequestFormsPage() {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
+  const [showSignature, setShowSignature] = useState(false);
+  const [signatureCanvasRef, setSignatureCanvasRef] = useState(null);
   const [returnFormData, setReturnFormData] = useState({
     condition: "good",
     delayReason: "",
@@ -256,10 +260,15 @@ export default function RequestFormsPage() {
                            request.adviserName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            borrowerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            request.categoryName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           request.laboratory?.toLowerCase().includes(searchTerm.toLowerCase());
+                           request.laboratory?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           request.itemNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           request.batchId?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = filterStatus === "All" || request.status === filterStatus;
       const matchesType = filterType === "All" || request.categoryName === filterType;
-      return matchesSearch && matchesStatus && matchesType;
+      const matchesBatch = filterBatch === "All" || 
+                          (filterBatch === "Batch" && request.batchId) ||
+                          (filterBatch === "Individual" && !request.batchId);
+      return matchesSearch && matchesStatus && matchesType && matchesBatch;
     })
     .sort((a, b) => {
       let aValue = a[sortBy];
@@ -277,6 +286,24 @@ export default function RequestFormsPage() {
       }
     });
 
+  // Group requests by batchId if grouping is enabled
+  const groupedRequests = groupByBatch ? (() => {
+    const groups = {};
+    filteredRequests.forEach(request => {
+      const key = request.batchId || 'individual';
+      if (!groups[key]) {
+        groups[key] = {
+          batchId: request.batchId,
+          batchSize: request.batchSize,
+          requests: [],
+          isBatch: !!request.batchId
+        };
+      }
+      groups[key].requests.push(request);
+    });
+    return Object.values(groups);
+  })() : null;
+
   // Pagination calculations
   const totalItems = filteredRequests.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -288,7 +315,7 @@ export default function RequestFormsPage() {
   useEffect(() => {
     // Reset to first page when filters/search/sort change
     setCurrentPage(1);
-  }, [searchTerm, filterStatus, filterType, sortBy, sortOrder]);
+  }, [searchTerm, filterStatus, filterType, filterBatch, groupByBatch, sortBy, sortOrder]);
 
   const goToPage = (page) => {
     const target = Math.max(1, Math.min(page, totalPages));
@@ -310,25 +337,84 @@ export default function RequestFormsPage() {
         updateData.returnedAt = new Date().toISOString();
       }
 
-      await update(requestRef, updateData);
-      
-      // Find the request data for notifications
+      // Find the request data
       const requestData = allRequests.find(req => req.id === requestId);
+      if (!requestData) {
+        alert("Request not found");
+        return;
+      }
+
+      // Find equipment data - try itemId first, then fallback to name matching
+      let equipment = null;
+      if (requestData.itemId && requestData.categoryId) {
+        // Try to find by itemId and categoryId
+        equipment = equipmentData.find(eq => 
+          eq.id === requestData.itemId && eq.categoryId === requestData.categoryId
+        );
+      }
       
-      // Send notifications based on status change
-      if (requestData) {
-        // Find equipment data
-        const equipment = equipmentData.find(eq => 
+      // Fallback to name matching
+      if (!equipment) {
+        equipment = equipmentData.find(eq => 
           eq.equipmentName === requestData.itemName || 
           eq.itemName === requestData.itemName ||
           eq.name === requestData.itemName ||
           eq.title === requestData.itemName
         );
+      }
+
+      // Manage quantity_borrowed based on status change
+      if (equipment && requestData.categoryId && (requestData.itemId || equipment.id)) {
+        const equipmentId = requestData.itemId || equipment.id;
+        const categoryId = requestData.categoryId || equipment.categoryId;
+        const requestedQuantity = parseInt(requestData.quantity) || 1;
         
+        const equipmentRef = ref(database, `equipment_categories/${categoryId}/equipments/${equipmentId}`);
+        const equipmentSnapshot = await get(equipmentRef);
+        const currentEquipment = equipmentSnapshot.exists() ? equipmentSnapshot.val() : null;
+        
+        if (currentEquipment) {
+          const currentBorrowed = currentEquipment.quantity_borrowed || 0;
+          const totalQuantity = parseInt(currentEquipment.quantity) || 0;
+          
+          let newBorrowed = currentBorrowed;
+          
+          // Handle quantity_borrowed updates based on status change
+          if (newStatus === 'approved' && requestData.status !== 'approved') {
+            // Increment on approval (only if not already approved)
+            newBorrowed = currentBorrowed + requestedQuantity;
+            
+            // Check available quantity before approval
+            const availableQuantity = totalQuantity - currentBorrowed;
+            if (availableQuantity < requestedQuantity) {
+              alert(`Cannot approve: Only ${availableQuantity} available, but ${requestedQuantity} requested.`);
+              return;
+            }
+          } else if (newStatus === 'rejected' && requestData.status === 'approved') {
+            // Decrement on rejection (only if was previously approved)
+            newBorrowed = Math.max(0, currentBorrowed - requestedQuantity);
+          } else if (newStatus === 'returned') {
+            // Decrement on return
+            newBorrowed = Math.max(0, currentBorrowed - requestedQuantity);
+          }
+          
+          // Update quantity_borrowed if it changed
+          if (newBorrowed !== currentBorrowed) {
+            await update(equipmentRef, {
+              quantity_borrowed: newBorrowed
+            });
+          }
+        }
+      }
+      
+      await update(requestRef, updateData);
+      
+      // Send notifications based on status change
+      if (equipment) {
         // Find laboratory data
         const laboratory = laboratories.find(lab => lab.labId === equipment?.labId);
         
-        if (equipment && laboratory) {
+        if (laboratory) {
           switch (newStatus) {
             case 'approved':
               await notifyRequestApproved(requestData, equipment, laboratory, "Admin");
@@ -386,6 +472,33 @@ export default function RequestFormsPage() {
     }
   };
 
+  // Batch actions
+  const handleBatchAction = async (batchId, action) => {
+    if (!batchId) return;
+    
+    const batchRequests = allRequests.filter(req => req.batchId === batchId);
+    if (batchRequests.length === 0) {
+      alert("No requests found in this batch");
+      return;
+    }
+
+    const actionText = action === 'approved' ? 'approve' : 'reject';
+    if (!window.confirm(`Are you sure you want to ${actionText} all ${batchRequests.length} items in this batch?`)) {
+      return;
+    }
+
+    try {
+      // Process all requests in the batch
+      for (const request of batchRequests) {
+        await handleStatusUpdate(request.id, action);
+      }
+      alert(`Batch ${actionText}d successfully!`);
+    } catch (error) {
+      console.error(`Error ${actionText}ing batch:`, error);
+      alert(`Failed to ${actionText} batch. Please try again.`);
+    }
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -408,14 +521,112 @@ export default function RequestFormsPage() {
     }
   };
 
+  // Signature handling functions
+  const decodeSignature = (base64String) => {
+    try {
+      if (!base64String) return null;
+      const decoded = atob(base64String);
+      return JSON.parse(decoded);
+    } catch (error) {
+      console.error("Error decoding signature:", error);
+      return null;
+    }
+  };
+
+  const renderSignature = (signatureData, canvas) => {
+    if (!signatureData || !canvas) return;
+    
+    try {
+      const ctx = canvas.getContext('2d');
+      const { points, strokeWidth } = signatureData;
+      
+      if (!points || points.length === 0) return;
+      
+      // Set canvas size
+      canvas.width = 400;
+      canvas.height = 200;
+      
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Set drawing style
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = strokeWidth || 2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      // Find bounds to scale signature to canvas
+      const bounds = points.reduce((acc, point) => {
+        if (point.x !== undefined && point.y !== undefined) {
+          acc.minX = Math.min(acc.minX, point.x);
+          acc.maxX = Math.max(acc.maxX, point.x);
+          acc.minY = Math.min(acc.minY, point.y);
+          acc.maxY = Math.max(acc.maxY, point.y);
+        }
+        return acc;
+      }, { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+      
+      const width = bounds.maxX - bounds.minX || 1;
+      const height = bounds.maxY - bounds.minY || 1;
+      const scaleX = (canvas.width - 20) / width;
+      const scaleY = (canvas.height - 20) / height;
+      const scale = Math.min(scaleX, scaleY);
+      
+      const offsetX = (canvas.width - width * scale) / 2 - bounds.minX * scale;
+      const offsetY = (canvas.height - height * scale) / 2 - bounds.minY * scale;
+      
+      // Draw signature
+      let isDrawing = false;
+      points.forEach((point, index) => {
+        if (point.x === undefined || point.y === undefined) return;
+        
+        const x = point.x * scale + offsetX;
+        const y = point.y * scale + offsetY;
+        
+        if (point.isNewStroke || index === 0) {
+          // End previous stroke if any
+          if (isDrawing) {
+            ctx.stroke();
+          }
+          // Start new stroke
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          isDrawing = true;
+        } else if (isDrawing) {
+          // Continue current stroke
+          ctx.lineTo(x, y);
+        }
+      });
+      
+      // Final stroke
+      if (isDrawing) {
+        ctx.stroke();
+      }
+    } catch (error) {
+      console.error("Error rendering signature:", error);
+    }
+  };
+
+  // Effect to render signature when canvas is ready
+  useEffect(() => {
+    if (showSignature && signatureCanvasRef && selectedRequest?.signature) {
+      const signatureData = decodeSignature(selectedRequest.signature);
+      if (signatureData) {
+        renderSignature(signatureData, signatureCanvasRef);
+      }
+    }
+  }, [showSignature, signatureCanvasRef, selectedRequest?.signature]);
+
   const handleViewDetails = (request) => {
     setSelectedRequest(request);
     setShowDetailsModal(true);
+    setShowSignature(false); // Reset signature view when opening new request
   };
 
   const closeDetailsModal = () => {
     setSelectedRequest(null);
     setShowDetailsModal(false);
+    setShowSignature(false);
   };
 
   const openReturnModal = (request) => {
@@ -674,6 +885,26 @@ export default function RequestFormsPage() {
               <option key={type} value={type}>{type}</option>
             ))}
           </select>
+
+          <select
+            value={filterBatch}
+            onChange={(e) => setFilterBatch(e.target.value)}
+            className="filter-select"
+          >
+            <option value="All">All Requests</option>
+            <option value="Batch">Batch Requests</option>
+            <option value="Individual">Individual Requests</option>
+          </select>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={groupByBatch}
+              onChange={(e) => setGroupByBatch(e.target.checked)}
+              style={{ cursor: 'pointer' }}
+            />
+            <span>Group by Batch</span>
+          </label>
         </div>
       </div>
 
@@ -699,6 +930,7 @@ export default function RequestFormsPage() {
                   <th onClick={() => handleSort("quantity")} className="sortable">
                     Quantity {getSortIcon("quantity")}
                   </th>
+                  <th>Batch</th>
                   <th onClick={() => handleSort("status")} className="sortable">
                     Status {getSortIcon("status")}
                   </th>
@@ -709,14 +941,58 @@ export default function RequestFormsPage() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedRequests.map((request) => (
-                  <tr key={request.id}>
-                    <td className="item-name-cell">
-                      <div className="item-info">
-                        <span className="item-name">{request.itemName || "Untitled"}</span>
-                        <span className="item-number">{request.itemNo || ""}</span>
-                      </div>
-                    </td>
+                {groupByBatch && groupedRequests ? (
+                  // Grouped view
+                  groupedRequests.map((group) => (
+                    <React.Fragment key={group.batchId || 'individual'}>
+                      {group.isBatch && (
+                        <tr className="batch-header-row" style={{ backgroundColor: '#f0f9ff', fontWeight: 'bold' }}>
+                          <td colSpan="9" style={{ padding: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <span style={{ 
+                                  backgroundColor: '#3b82f6', 
+                                  color: 'white', 
+                                  padding: '4px 12px', 
+                                  borderRadius: '12px',
+                                  fontSize: '12px'
+                                }}>
+                                  Batch of {group.batchSize || group.requests.length} items
+                                </span>
+                                <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                                  Batch ID: {group.batchId?.substring(0, 8)}...
+                                </span>
+                              </div>
+                              {group.requests[0]?.status === 'pending' && (
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <button
+                                    className="action-btn approve-btn"
+                                    onClick={() => handleBatchAction(group.batchId, 'approved')}
+                                    style={{ padding: '6px 12px', fontSize: '12px' }}
+                                  >
+                                    ✅ Approve Batch
+                                  </button>
+                                  <button
+                                    className="action-btn reject-btn"
+                                    onClick={() => handleBatchAction(group.batchId, 'rejected')}
+                                    style={{ padding: '6px 12px', fontSize: '12px' }}
+                                  >
+                                    ❌ Reject Batch
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {group.requests.map((request) => (
+                        <tr key={request.id} style={group.isBatch ? { backgroundColor: '#f9fafb' } : {}}>
+                          <td className="item-name-cell">
+                            <div className="item-info">
+                              <span className="item-name">{request.itemName || "Untitled"}</span>
+                              <span className="item-number">{request.itemNo || ""}</span>
+                            </div>
+                          </td>
                     <td className="borrower-cell">
                       <div className="borrower-info">
                         <div className="borrower-avatar">
@@ -733,74 +1009,213 @@ export default function RequestFormsPage() {
                         <span className="adviser-name">{request.adviserName || "Unknown"}</span>
                       </div>
                     </td>
-                    <td className="laboratory-cell">{request.laboratory || "Not specified"}</td>
-                    <td className="quantity-cell">
-                      <span className="quantity-badge">{request.quantity || "1"}</span>
-                    </td>
-                    <td>
-                      <span className={`status-badge ${getStatusBadgeClass(request.status)}`}>
-                        {request.status || "pending"}
-                      </span>
-                    </td>
-                    <td className="date-cell">
-                      {formatDate(request.requestedAt || request.dateToBeUsed)}
-                    </td>
-                    <td>
-                      <div className="table-actions">
-                        <button
-                          className="action-btn view-btn"
-                          onClick={() => handleViewDetails(request)}
-                          title="View Details"
-                        >
-                          👁️ View
-                        </button>
-                        {request.status === "pending" && (
-                          <>
-                            <button
-                              className="action-btn approve-btn"
-                              onClick={() => handleStatusUpdate(request.id, "approved")}
-                              title="Approve"
-                            >
-                              ✅
-                            </button>
-                            <button
-                              className="action-btn reject-btn"
-                              onClick={() => handleStatusUpdate(request.id, "rejected")}
-                              title="Reject"
-                            >
-                              ❌
-                            </button>
-                          </>
-                        )}
-                        {request.status === "approved" && (
-                          <button
-                            className="action-btn release-btn"
-                            onClick={() => handleStatusUpdate(request.id, "released")}
+                          <td className="laboratory-cell">{request.laboratory || "Not specified"}</td>
+                          <td className="quantity-cell">
+                            <span className="quantity-badge">{request.quantity || "1"}</span>
+                          </td>
+                          <td>
+                            {request.batchId ? (
+                              <span style={{ 
+                                backgroundColor: '#dbeafe', 
+                                color: '#1e40af', 
+                                padding: '2px 8px', 
+                                borderRadius: '8px',
+                                fontSize: '11px'
+                              }}>
+                                Batch
+                              </span>
+                            ) : (
+                              <span style={{ color: '#9ca3af', fontSize: '11px' }}>—</span>
+                            )}
+                          </td>
+                          <td>
+                            <span className={`status-badge ${getStatusBadgeClass(request.status)}`}>
+                              {request.status || "pending"}
+                            </span>
+                          </td>
+                          <td className="date-cell">
+                            {formatDate(request.requestedAt || request.dateToBeUsed)}
+                          </td>
+                          <td>
+                            <div className="table-actions">
+                              <button
+                                className="action-btn view-btn"
+                                onClick={() => handleViewDetails(request)}
+                                title="View Details"
+                              >
+                                👁️ View
+                              </button>
+                              {request.status === "pending" && (
+                                <>
+                                  <button
+                                    className="action-btn approve-btn"
+                                    onClick={() => handleStatusUpdate(request.id, "approved")}
+                                    title="Approve"
+                                  >
+                                    ✅
+                                  </button>
+                                  <button
+                                    className="action-btn reject-btn"
+                                    onClick={() => handleStatusUpdate(request.id, "rejected")}
+                                    title="Reject"
+                                  >
+                                    ❌
+                                  </button>
+                                </>
+                              )}
+                              {request.status === "approved" && (
+                                <button
+                                  className="action-btn release-btn"
+                                  onClick={() => handleStatusUpdate(request.id, "released")}
                             title="Release Item"
                           >
                             🚀 Release
                           </button>
                         )}
-                        {(request.status === "released" || request.status === "in_progress") && (
-                          <button
-                            className="action-btn return-btn"
-                            onClick={() => openReturnModal(request)}
-                            title="Process Return"
-                          >
-                            📦
-                          </button>
+                              {(request.status === "released" || request.status === "in_progress") && (
+                                <button
+                                  className="action-btn return-btn"
+                                  onClick={() => openReturnModal(request)}
+                                  title="Process Return"
+                                >
+                                  📦
+                                </button>
+                              )}
+                              <button
+                                className="action-btn delete-btn"
+                                onClick={() => handleDeleteRequest(request.id)}
+                                title="Delete"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  ))
+                ) : (
+                  // Regular (non-grouped) view
+                  paginatedRequests.map((request) => (
+                    <tr key={request.id}>
+                      <td className="item-name-cell">
+                        <div className="item-info">
+                          <span className="item-name">{request.itemName || "Untitled"}</span>
+                          <span className="item-number">{request.itemNo || ""}</span>
+                          {request.batchId && (
+                            <span style={{ 
+                              backgroundColor: '#dbeafe', 
+                              color: '#1e40af', 
+                              padding: '2px 8px', 
+                              borderRadius: '8px',
+                              fontSize: '10px',
+                              marginLeft: '8px'
+                            }}>
+                              Batch of {request.batchSize || '?'} items
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="borrower-cell">
+                        <div className="borrower-info">
+                          <div className="borrower-avatar">
+                            {getBorrowerName(request.userId)?.charAt(0)?.toUpperCase() || "?"}
+                          </div>
+                          <span className="borrower-name">{getBorrowerName(request.userId)}</span>
+                        </div>
+                      </td>
+                      <td className="adviser-cell">
+                        <div className="adviser-info">
+                          <div className="adviser-avatar">
+                            {request.adviserName?.charAt(0)?.toUpperCase() || "?"}
+                          </div>
+                          <span className="adviser-name">{request.adviserName || "Unknown"}</span>
+                        </div>
+                      </td>
+                      <td className="laboratory-cell">{request.laboratory || "Not specified"}</td>
+                      <td className="quantity-cell">
+                        <span className="quantity-badge">{request.quantity || "1"}</span>
+                      </td>
+                      <td>
+                        {request.batchId ? (
+                          <span style={{ 
+                            backgroundColor: '#dbeafe', 
+                            color: '#1e40af', 
+                            padding: '2px 8px', 
+                            borderRadius: '8px',
+                            fontSize: '11px'
+                          }}>
+                            Batch
+                          </span>
+                        ) : (
+                          <span style={{ color: '#9ca3af', fontSize: '11px' }}>—</span>
                         )}
-                        <button
-                          className="action-btn delete-btn"
-                          onClick={() => handleDeleteRequest(request.id)}
-                          title="Delete"
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>
+                        <span className={`status-badge ${getStatusBadgeClass(request.status)}`}>
+                          {request.status || "pending"}
+                        </span>
+                      </td>
+                      <td className="date-cell">
+                        {formatDate(request.requestedAt || request.dateToBeUsed)}
+                      </td>
+                      <td>
+                        <div className="table-actions">
+                          <button
+                            className="action-btn view-btn"
+                            onClick={() => handleViewDetails(request)}
+                            title="View Details"
+                          >
+                            👁️ View
+                          </button>
+                          {request.status === "pending" && (
+                            <>
+                              <button
+                                className="action-btn approve-btn"
+                                onClick={() => handleStatusUpdate(request.id, "approved")}
+                                title="Approve"
+                              >
+                                ✅
+                              </button>
+                              <button
+                                className="action-btn reject-btn"
+                                onClick={() => handleStatusUpdate(request.id, "rejected")}
+                                title="Reject"
+                              >
+                                ❌
+                              </button>
+                            </>
+                          )}
+                          {request.status === "approved" && (
+                            <button
+                              className="action-btn release-btn"
+                              onClick={() => handleStatusUpdate(request.id, "released")}
+                              title="Release Item"
+                            >
+                              🚀 Release
+                            </button>
+                          )}
+                          {(request.status === "released" || request.status === "in_progress") && (
+                            <button
+                              className="action-btn return-btn"
+                              onClick={() => openReturnModal(request)}
+                              title="Process Return"
+                            >
+                              📦
+                            </button>
+                          )}
+                          <button
+                            className="action-btn delete-btn"
+                            onClick={() => handleDeleteRequest(request.id)}
+                            title="Delete"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
 
@@ -846,7 +1261,7 @@ export default function RequestFormsPage() {
             <div className="empty-icon">📋</div>
             <h3>No Request Forms Found</h3>
             <p>
-              {searchTerm || filterStatus !== "All" || filterType !== "All" 
+              {searchTerm || filterStatus !== "All" || filterType !== "All" || filterBatch !== "All"
                 ? "No requests match your current filters." 
                 : "No request forms have been submitted yet."
               }
@@ -888,6 +1303,54 @@ export default function RequestFormsPage() {
                     <label>Laboratory:</label>
                     <span>{selectedRequest.laboratory || "N/A"}</span>
                   </div>
+                  {selectedRequest.batchId && (
+                    <>
+                      <div className="detail-item">
+                        <label>Batch ID:</label>
+                        <span style={{ 
+                          backgroundColor: '#dbeafe', 
+                          color: '#1e40af', 
+                          padding: '4px 8px', 
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          fontFamily: 'monospace'
+                        }}>
+                          {selectedRequest.batchId}
+                        </span>
+                      </div>
+                      <div className="detail-item">
+                        <label>Batch Size:</label>
+                        <span style={{ 
+                          backgroundColor: '#3b82f6', 
+                          color: 'white', 
+                          padding: '4px 12px', 
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 'bold'
+                        }}>
+                          {selectedRequest.batchSize || '?'} items
+                        </span>
+                      </div>
+                      <div className="detail-item">
+                        <label>Batch Members:</label>
+                        <div style={{ marginTop: '8px' }}>
+                          {allRequests
+                            .filter(req => req.batchId === selectedRequest.batchId)
+                            .map((batchMember, index) => (
+                              <div key={batchMember.id} style={{ 
+                                padding: '6px', 
+                                marginBottom: '4px', 
+                                backgroundColor: '#f3f4f6',
+                                borderRadius: '4px',
+                                fontSize: '12px'
+                              }}>
+                                {index + 1}. {batchMember.itemName} (Qty: {batchMember.quantity || 1}) - {batchMember.status}
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div className="detail-section">
@@ -912,6 +1375,85 @@ export default function RequestFormsPage() {
                     <label>Instructor ID:</label>
                     <span>{selectedRequest.adviserId || "N/A"}</span>
                   </div>
+                </div>
+
+                {/* Signature & Verification Section */}
+                <div className="detail-section">
+                  <h3>Signature & Verification</h3>
+                  {selectedRequest.signature ? (
+                    <div className="signature-container" style={{ marginTop: '12px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowSignature(!showSignature)}
+                        style={{
+                          padding: '8px 16px',
+                          backgroundColor: showSignature ? '#ef4444' : '#3b82f6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          marginBottom: showSignature ? '12px' : '0',
+                          transition: 'background-color 0.2s'
+                        }}
+                        onMouseOver={(e) => {
+                          e.target.style.backgroundColor = showSignature ? '#dc2626' : '#2563eb';
+                        }}
+                        onMouseOut={(e) => {
+                          e.target.style.backgroundColor = showSignature ? '#ef4444' : '#3b82f6';
+                        }}
+                      >
+                        {showSignature ? '🔼 Hide Signature' : '✍️ View Signature'}
+                      </button>
+                      {showSignature && (
+                        <div style={{
+                          marginTop: '12px',
+                          padding: '16px',
+                          backgroundColor: '#f9fafb',
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '12px'
+                        }}>
+                          <canvas
+                            ref={(canvas) => {
+                              if (canvas) {
+                                setSignatureCanvasRef(canvas);
+                              }
+                            }}
+                            style={{
+                              border: '1px solid #d1d5db',
+                              borderRadius: '4px',
+                              backgroundColor: 'white',
+                              maxWidth: '100%',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                            }}
+                          />
+                          <div style={{
+                            fontSize: '12px',
+                            color: '#6b7280',
+                            fontStyle: 'italic'
+                          }}>
+                            Student Signature
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="detail-item">
+                      <label>Signature:</label>
+                      <span style={{ 
+                        color: '#9ca3af', 
+                        fontStyle: 'italic',
+                        fontSize: '14px'
+                      }}>
+                        No signature provided
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="detail-section">
