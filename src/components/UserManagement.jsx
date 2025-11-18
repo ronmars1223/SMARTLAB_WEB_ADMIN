@@ -5,22 +5,18 @@ import {
   ref, 
   get, 
   update,
-  push,
   set
 } from "firebase/database";
 import { 
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
-  signInWithEmailAndPassword,
   signOut
 } from "firebase/auth";
 import { database, auth } from "../firebase";
-import { useAuth } from "../contexts/AuthContext";
 import "../CSS/UserManagement.css";
 
 export default function UserManagement({ onRedirectToUsers }) {
   const navigate = useNavigate();
-  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -188,9 +184,7 @@ export default function UserManagement({ onRedirectToUsers }) {
         }
 
         // Create new user with Firebase Authentication
-        // Store admin session info before creating user
-        const adminEmail = currentUser.email;
-        const adminId = currentUser.uid;
+        // Note: Admin session info stored but not used as we navigate to login after creation
         
         // Create the new user (this will temporarily sign them in)
         const userCredential = await createUserWithEmailAndPassword(

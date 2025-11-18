@@ -189,6 +189,7 @@ export default function RequestFormsPage() {
     if (allRequests.length > 0 && equipmentData.length > 0 && laboratories.length > 0) {
       checkForNewRequests(allRequests);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allRequests, equipmentData, laboratories]);
 
   // Filter requests based on user role and assigned laboratories

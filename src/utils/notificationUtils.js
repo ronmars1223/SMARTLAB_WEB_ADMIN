@@ -1,4 +1,4 @@
-import { ref, push, get } from "firebase/database";
+import { ref, push } from "firebase/database";
 import { database } from "../firebase";
 
 /**

@@ -1,6 +1,6 @@
 // src/components/Analytics.jsx
 import React, { useState, useEffect } from "react";
-import { ref, onValue, get } from "firebase/database";
+import { ref } from "firebase/database";
 import { database } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import "../CSS/Analytics.css";
@@ -23,6 +23,7 @@ export default function Analytics() {
 
   useEffect(() => {
     loadAnalyticsData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPeriod]);
 
   const loadAllEquipment = async (categories) => {

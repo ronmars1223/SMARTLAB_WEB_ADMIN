@@ -1,12 +1,10 @@
 // src/components/Sidebar.js
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import "../CSS/Sidebar.css";
 
 export default function Sidebar({ activeSection, onSectionChange }) {
-  const navigate = useNavigate();
-  const { logout, userRole, isAdmin, isLaboratoryManager } = useAuth();
+  const { logout, userRole, isAdmin } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const handleLogout = async () => {

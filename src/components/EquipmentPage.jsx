@@ -181,6 +181,7 @@ export default function EquipmentPage() {
     } else {
       setEquipments([]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory]);
 
   // Debug: Check assigned laboratories
@@ -337,8 +338,7 @@ export default function EquipmentPage() {
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result);
-        // Store base64 string for saving to database
-        const base64String = reader.result;
+        // base64 string is stored in reader.result and will be used in uploadEquipmentImage
       };
       reader.readAsDataURL(file);
     }

@@ -5,7 +5,6 @@
   import { getDatabase, ref, get, child } from "firebase/database";
   import "../CSS/Login.css";
   import { useNavigate } from "react-router-dom";
-  import { useAuth } from "../contexts/AuthContext";
 
   export default function Login() {
     const [email, setEmail] = useState("");
@@ -13,8 +12,7 @@
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState("");
-    const navigate = useNavigate();
-    const { user, userRole } = useAuth();
+  const navigate = useNavigate();
 
     const handleLogin = async (e) => {
       e.preventDefault();

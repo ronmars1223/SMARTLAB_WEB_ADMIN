@@ -17,7 +17,7 @@ import { exportToPDF, printActivities } from "../utils/pdfUtils";
 import "../CSS/Dashboard.css";
 
 export default function Dashboard() {
-  const { user, userRole, isAdmin, isLaboratoryManager, getAssignedLaboratoryIds } = useAuth();
+  const { user, isAdmin, isLaboratoryManager, getAssignedLaboratoryIds } = useAuth();
   const [activeSection, setActiveSection] = useState("dashboard");
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
@@ -44,6 +44,7 @@ export default function Dashboard() {
   const [allRequests, setAllRequests] = useState([]);
   const [equipmentData, setEquipmentData] = useState([]);
   const [laboratories, setLaboratories] = useState([]);
+  const [users, setUsers] = useState([]);
 
   const normalizeText = (value) => (value || "").toString().trim().toLowerCase();
 
@@ -212,6 +213,19 @@ export default function Dashboard() {
           }));
           setLaboratories(laboratoriesList);
         }
+
+        // Load users data to get borrower names
+        const usersRef = ref(database, 'users');
+        const usersSnapshot = await get(usersRef);
+        
+        if (usersSnapshot.exists()) {
+          const usersData = usersSnapshot.val();
+          const usersList = Object.keys(usersData).map(key => ({
+            id: key,
+            ...usersData[key]
+          }));
+          setUsers(usersList);
+        }
       } catch (error) {
         console.error("Error loading data for overdue check:", error);
       }
@@ -311,36 +325,29 @@ export default function Dashboard() {
         let adviserBorrowings = 0;
         let studentBorrowings = 0;
         
+        // Helper function to get user role from userId
+        const getUserRoleFromRequest = (userId) => {
+          if (!userId) return null;
+          const user = users.find(u => u.id === userId || u.userId === userId);
+          return user?.role || null;
+        };
+        
         requests.forEach(req => {
           if (['in_progress', 'approved', 'released'].includes(req.status)) {
-            const borrowerName = req.adviserName?.toLowerCase() || '';
-            const userEmail = req.userEmail?.toLowerCase() || '';
+            // Use userId to look up the actual user role from the users database
+            const userRole = getUserRoleFromRequest(req.userId);
             
-            const facultyNamePatterns = [
-              'prof', 'professor', 'dr', 'doctor', 'mr', 'ms', 'mrs', 'sir', 'teacher',
-              'instructor', 'lecturer', 'dean', 'director', 'head', 'coordinator'
-            ];
+            let isFaculty = false;
             
-            const facultyEmailPatterns = [
-              '@faculty.', '@staff.', '@prof.', '@instructor.', '@teacher.',
-              '.edu', '.ac.'
-            ];
-            
-            const studentEmailPatterns = ['@student.', '@stud.', 'student@', 'stud@'];
-            
-            const hasFacultyNamePattern = facultyNamePatterns.some(pattern => 
-              borrowerName.includes(pattern)
-            );
-            
-            const hasFacultyEmailPattern = facultyEmailPatterns.some(pattern => 
-              userEmail.includes(pattern)
-            );
-            
-            const hasStudentEmailPattern = studentEmailPatterns.some(pattern => 
-              userEmail.includes(pattern)
-            );
-            
-            const isFaculty = (hasFacultyNamePattern || hasFacultyEmailPattern) && !hasStudentEmailPattern;
+            if (userRole) {
+              // Check if role indicates faculty (admin or laboratory_manager are considered faculty)
+              if (userRole === 'admin' || userRole === 'laboratory_manager') {
+                isFaculty = true;
+              } else if (userRole === 'student') {
+                isFaculty = false;
+              }
+            }
+            // If no role found, default to student (false)
             
             if (isFaculty) {
               adviserBorrowings++;
@@ -402,7 +409,8 @@ export default function Dashboard() {
       unsubscribeBorrowRequests();
       unsubscribeUsers();
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, requestBelongsToAssignedLabs, users]);
 
   useEffect(() => {
     let equipmentList = equipmentData;
@@ -425,10 +433,11 @@ export default function Dashboard() {
     const availableEquipment = totalEquipment - borrowedEquipment;
 
     // Calculate items in stock (based on status, for backward compatibility)
-    const inStock = equipmentList.reduce((sum, item) => {
-      const quantity = Number(item.quantity) || 1;
-      return normalizeText(item.status) === 'available' ? sum + quantity : sum;
-    }, 0);
+    // Note: inStock calculation kept for potential future use
+    // const inStock = equipmentList.reduce((sum, item) => {
+    //   const quantity = Number(item.quantity) || 1;
+    //   return normalizeText(item.status) === 'available' ? sum + quantity : sum;
+    // }, 0);
 
     const needMaintenance = equipmentList.reduce((sum, item) => {
       const quantity = Number(item.quantity) || 1;
@@ -444,6 +453,13 @@ export default function Dashboard() {
       needMaintenance
     }));
   }, [equipmentData, isAdmin, equipmentBelongsToAssignedLabs, getAssignedLaboratoryIds]);
+
+  // Helper function to get borrower name from userId
+  const getBorrowerName = useCallback((userId) => {
+    if (!userId) return "Unknown";
+    const user = users.find(u => u.id === userId || u.userId === userId);
+    return user?.name || user?.fullName || user?.displayName || user?.email || "Unknown";
+  }, [users]);
 
   // Load recent activity data
   useEffect(() => {
@@ -525,14 +541,18 @@ export default function Dashboard() {
                        request.status === 'pending' ? 'New borrow request submitted' :
                        request.status === 'rejected' ? 'Borrow request rejected' :
                        request.status === 'released' ? 'Equipment released' :
+                       request.status === 'returned' ? 'Equipment returned' :
                        'Borrow request status updated',
-                time: request.requestedAt || request.updatedAt,
+                time: request.status === 'returned' && request.returnedAt 
+                      ? request.returnedAt 
+                      : request.requestedAt || request.updatedAt,
                 icon: request.status === 'approved' ? 'info' : 
                       request.status === 'released' ? 'success' :
+                      request.status === 'returned' ? 'success' :
                       request.status === 'rejected' ? 'warning' : 'success',
                 details: {
                   item: request.itemName,
-                  borrower: request.adviserName,
+                  borrower: getBorrowerName(request.userId),
                   status: request.status,
                   laboratory: request.laboratory
                 },
@@ -575,7 +595,7 @@ export default function Dashboard() {
     };
 
     loadRecentActivity();
-  }, [isAdmin, isLaboratoryManager, getAssignedLaboratoryIds, laboratories]);
+  }, [isAdmin, isLaboratoryManager, getAssignedLaboratoryIds, laboratories, getBorrowerName, users]);
 
   const handleSectionChange = (section) => {
     console.log("Section changed to:", section); // Debug log

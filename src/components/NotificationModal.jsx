@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ref, onValue, update, get } from "firebase/database";
+import { ref, onValue, update } from "firebase/database";
 import { database } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import "../CSS/NotificationModal.css";

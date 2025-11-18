@@ -6,7 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 import "../CSS/LaboratoryManagement.css";
 
 export default function LaboratoryManagement() {
-  const { isAdmin, isLaboratoryManager, assignedLaboratories, canAccessLaboratory } = useAuth();
+  const { isAdmin, isLaboratoryManager, assignedLaboratories } = useAuth();
   const [laboratories, setLaboratories] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14,7 +14,6 @@ export default function LaboratoryManagement() {
   const [editingLaboratory, setEditingLaboratory] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
-  const [inChargeFilter, setInChargeFilter] = useState("");
   const [managerFilter, setManagerFilter] = useState("");
   const [sortBy, setSortBy] = useState("labName");
   const [sortOrder, setSortOrder] = useState("asc");
@@ -34,7 +33,6 @@ export default function LaboratoryManagement() {
     labName: "",
     description: "",
     location: "",
-    laboratoryInCharge: "",
     managerUserId: "",
     createdAt: ""
   });
@@ -43,6 +41,7 @@ export default function LaboratoryManagement() {
   useEffect(() => {
     fetchLaboratories();
     fetchUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, isLaboratoryManager, assignedLaboratories]);
 
   const fetchLaboratories = () => {
@@ -210,7 +209,6 @@ export default function LaboratoryManagement() {
       labName: laboratory.labName || "",
       description: laboratory.description || "",
       location: laboratory.location || "",
-      laboratoryInCharge: laboratory.laboratoryInCharge || "",
       managerUserId: laboratory.managerUserId || "",
       createdAt: laboratory.createdAt || ""
     });
@@ -245,7 +243,6 @@ export default function LaboratoryManagement() {
       labName: "",
       description: "",
       location: "",
-      laboratoryInCharge: "",
       managerUserId: "",
       createdAt: ""
     });
@@ -286,14 +283,12 @@ export default function LaboratoryManagement() {
       lab.labName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lab.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lab.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lab.laboratoryInCharge?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       managerName.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesLocation = !locationFilter || lab.location?.toLowerCase().includes(locationFilter.toLowerCase());
-    const matchesInCharge = !inChargeFilter || lab.laboratoryInCharge?.toLowerCase().includes(inChargeFilter.toLowerCase());
     const matchesManager = !managerFilter || lab.managerUserId === managerFilter;
     
-    return matchesSearch && matchesLocation && matchesInCharge && matchesManager;
+    return matchesSearch && matchesLocation && matchesManager;
   });
 
   const sortedLaboratories = filteredLaboratories.sort((a, b) => {
@@ -334,14 +329,6 @@ export default function LaboratoryManagement() {
     return locations;
   };
 
-  const getUniqueInCharges = () => {
-    const inCharges = laboratories
-      .map(lab => lab.laboratoryInCharge)
-      .filter(inCharge => inCharge && inCharge.trim() !== "")
-      .filter((value, index, self) => self.indexOf(value) === index)
-      .sort();
-    return inCharges;
-  };
 
   const getUniqueManagers = () => {
     const managerIds = laboratories
@@ -359,7 +346,6 @@ export default function LaboratoryManagement() {
   const clearAllFilters = () => {
     setSearchTerm("");
     setLocationFilter("");
-    setInChargeFilter("");
     setManagerFilter("");
   };
 
@@ -424,22 +410,6 @@ export default function LaboratoryManagement() {
           </div>
           
           <div className="filter-group">
-            <label className="filter-label">In-Charge:</label>
-            <select
-              value={inChargeFilter}
-              onChange={(e) => setInChargeFilter(e.target.value)}
-              className="filter-select"
-            >
-              <option value="">All In-Charges</option>
-              {getUniqueInCharges().map(inCharge => (
-                <option key={inCharge} value={inCharge}>
-                  {inCharge}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div className="filter-group">
             <label className="filter-label">Manager:</label>
             <select
               value={managerFilter}
@@ -471,7 +441,7 @@ export default function LaboratoryManagement() {
           <div className="table-title">
             <h3>Laboratories ({sortedLaboratories.length})</h3>
             <div className="table-info">
-              {searchTerm || locationFilter || inChargeFilter || managerFilter ? (
+              {searchTerm || locationFilter || managerFilter ? (
                 <span className="filter-info">
                   Showing {sortedLaboratories.length} of {laboratories.length} laboratories
                 </span>
@@ -500,11 +470,8 @@ export default function LaboratoryManagement() {
                 <th onClick={() => handleSort("location")} className="sortable">
                   Location {getSortIcon("location")}
                 </th>
-                <th onClick={() => handleSort("laboratoryInCharge")} className="sortable">
-                  Laboratory In-Charge {getSortIcon("laboratoryInCharge")}
-                </th>
                 <th onClick={() => handleSort("managerUserId")} className="sortable">
-                  Manager {getSortIcon("managerUserId")}
+                  Lab In Charge {getSortIcon("managerUserId")}
                 </th>
                 <th onClick={() => handleSort("createdAt")} className="sortable">
                   Created At {getSortIcon("createdAt")}
@@ -526,7 +493,6 @@ export default function LaboratoryManagement() {
                         <div className="description-text">{laboratory.description || "—"}</div>
                       </td>
                       <td className="laboratory-location">{laboratory.location || "—"}</td>
-                      <td className="laboratory-in-charge">{laboratory.laboratoryInCharge || "—"}</td>
                       <td className="laboratory-manager">
                         {manager ? (
                           <div className="manager-info">
@@ -637,20 +603,6 @@ export default function LaboratoryManagement() {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Laboratory In-Charge</label>
-                  <input
-                    type="text"
-                    name="laboratoryInCharge"
-                    value={laboratoryFormData.laboratoryInCharge}
-                    onChange={handleInputChange}
-                    className="form-input"
-                    placeholder="e.g., Dr. John Smith"
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
                   <label className="form-label">Lab In Charge</label>
                   <select
                     name="managerUserId"
@@ -665,9 +617,6 @@ export default function LaboratoryManagement() {
                       </option>
                     ))}
                   </select>
-                </div>
-                <div className="form-group">
-                  {/* Empty div for spacing */}
                 </div>
               </div>
 

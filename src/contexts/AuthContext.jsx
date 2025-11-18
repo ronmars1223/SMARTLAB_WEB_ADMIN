@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth } from '../firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { database } from '../firebase';
-import { ref, get, child } from 'firebase/database';
+import { ref, get } from 'firebase/database';
 import { useNavigate } from 'react-router-dom';
 
 const AuthContext = createContext();

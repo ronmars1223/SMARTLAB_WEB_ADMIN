@@ -241,38 +241,35 @@ export default function HistoryPage() {
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
   // Enhanced user type detection function
+  // Helper function to get user role from userId
+  const getUserRole = (userId) => {
+    if (!userId) return null;
+    const user = users.find(u => u.id === userId || u.userId === userId);
+    return user?.role || null;
+  };
+
   const determineUserType = (entry) => {
-    const borrowerName = entry.borrower?.toLowerCase() || '';
-    const userEmail = entry.details?.originalRequest?.userEmail?.toLowerCase() || '';
+    // Get userId from entry - try different possible fields
+    const userId = entry.userId || entry.details?.originalRequest?.userId || null;
     
-    // Check for faculty indicators in name
-    const facultyNamePatterns = [
-      'prof', 'professor', 'dr', 'doctor', 'mr', 'ms', 'mrs', 'sir', 'teacher',
-      'instructor', 'lecturer', 'dean', 'director', 'head', 'coordinator'
-    ];
+    // If we have userId, look up the user's role from the users database
+    if (userId) {
+      const userRole = getUserRole(userId);
+      
+      // Check if role indicates faculty (admin or laboratory_manager are considered faculty)
+      if (userRole === 'admin' || userRole === 'laboratory_manager') {
+        return true; // Faculty
+      }
+      
+      // If role is explicitly 'student', return false
+      if (userRole === 'student') {
+        return false; // Student
+      }
+    }
     
-    const hasFacultyNamePattern = facultyNamePatterns.some(pattern => 
-      borrowerName.includes(pattern)
-    );
-    
-    // Check for faculty email patterns (common institutional patterns)
-    const facultyEmailPatterns = [
-      '@faculty.', '@staff.', '@prof.', '@instructor.', '@teacher.',
-      '.edu', '.ac.' // Many academic institutions use these
-    ];
-    
-    const hasFacultyEmailPattern = facultyEmailPatterns.some(pattern => 
-      userEmail.includes(pattern)
-    );
-    
-    // Check if email contains student indicators
-    const studentEmailPatterns = ['@student.', '@stud.', 'student@', 'stud@'];
-    const hasStudentEmailPattern = studentEmailPatterns.some(pattern => 
-      userEmail.includes(pattern)
-    );
-    
-    // Return true if faculty indicators found and no student indicators
-    return (hasFacultyNamePattern || hasFacultyEmailPattern) && !hasStudentEmailPattern;
+    // Fallback: If user not found or no role, default to student
+    // This is safer than pattern matching - assumes student by default
+    return false;
   };
 
   // Calculate real usage data from Firebase data
