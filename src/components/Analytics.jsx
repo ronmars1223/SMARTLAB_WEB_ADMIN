@@ -15,7 +15,13 @@ export default function Analytics() {
     categoryBreakdown: [],
     monthlyData: {},
     peakHours: {},
-    utilizationRates: {}
+    utilizationRates: {},
+    diagnosticAnalytics: {
+      equipmentDamage: {},
+      lostItems: {},
+      lateReturns: {},
+      approvalBottlenecks: {}
+    }
   });
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState("30"); // days
@@ -174,6 +180,9 @@ export default function Analytics() {
     // Utilization Rates
     const utilizationRates = calculateUtilizationRates(equipment, history, periodDays);
 
+    // Diagnostic Analytics
+    const diagnosticAnalytics = calculateDiagnosticAnalytics(borrowRequests, history, periodDays);
+
     return {
       equipmentStats,
       borrowingTrends,
@@ -182,7 +191,8 @@ export default function Analytics() {
       categoryBreakdown,
       monthlyData,
       peakHours,
-      utilizationRates
+      utilizationRates,
+      diagnosticAnalytics
     };
   };
 
@@ -309,6 +319,249 @@ export default function Analytics() {
     };
   };
 
+  // Diagnostic Analytics Functions
+  const calculateDiagnosticAnalytics = (borrowRequests, history, periodDays) => {
+    const periodDaysMs = periodDays * 24 * 60 * 60 * 1000;
+    const cutoffDate = new Date(Date.now() - periodDaysMs);
+    
+    const historyValues = Object.values(history);
+    const requests = Object.values(borrowRequests);
+
+    // 1. Equipment Damage Analysis
+    const damageEntries = historyValues.filter(h => {
+      if (!h.timestamp || new Date(h.timestamp) < cutoffDate) return false;
+      const condition = (h.condition || '').toLowerCase();
+      return condition.includes('damaged') || condition === 'returned damaged';
+    });
+
+    const equipmentDamageAnalysis = {
+      totalDamageIncidents: damageEntries.length,
+      damageByEquipment: {},
+      damageByCategory: {},
+      damageByBorrower: {},
+      mostDamagedEquipment: [],
+      damageTrends: []
+    };
+
+    damageEntries.forEach(entry => {
+      const equipmentName = entry.equipmentName || 'Unknown';
+      const categoryName = entry.categoryName || 'Unknown';
+      const borrower = entry.borrower || entry.adviserName || 'Unknown';
+
+      equipmentDamageAnalysis.damageByEquipment[equipmentName] = 
+        (equipmentDamageAnalysis.damageByEquipment[equipmentName] || 0) + 1;
+      equipmentDamageAnalysis.damageByCategory[categoryName] = 
+        (equipmentDamageAnalysis.damageByCategory[categoryName] || 0) + 1;
+      equipmentDamageAnalysis.damageByBorrower[borrower] = 
+        (equipmentDamageAnalysis.damageByBorrower[borrower] || 0) + 1;
+    });
+
+    equipmentDamageAnalysis.mostDamagedEquipment = Object.entries(equipmentDamageAnalysis.damageByEquipment)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 10)
+      .map(([equipment, count]) => ({ equipment, count }));
+
+    // 2. Lost/Missing Items Analysis
+    const lostEntries = historyValues.filter(h => {
+      if (!h.timestamp || new Date(h.timestamp) < cutoffDate) return false;
+      const condition = (h.condition || '').toLowerCase();
+      return condition.includes('lost') || condition.includes('missing') || condition === 'item lost/missing';
+    });
+
+    const lostItemsAnalysis = {
+      totalLostItems: lostEntries.length,
+      lostByEquipment: {},
+      lostByCategory: {},
+      lostByBorrower: {},
+      causes: {},
+      mostLostEquipment: []
+    };
+
+    lostEntries.forEach(entry => {
+      const equipmentName = entry.equipmentName || 'Unknown';
+      const categoryName = entry.categoryName || 'Unknown';
+      const borrower = entry.borrower || entry.adviserName || 'Unknown';
+      const notes = (entry.returnDetails?.notes || '').toLowerCase();
+      const delayReason = (entry.returnDetails?.delayReason || '').toLowerCase();
+
+      lostItemsAnalysis.lostByEquipment[equipmentName] = 
+        (lostItemsAnalysis.lostByEquipment[equipmentName] || 0) + 1;
+      lostItemsAnalysis.lostByCategory[categoryName] = 
+        (lostItemsAnalysis.lostByCategory[categoryName] || 0) + 1;
+      lostItemsAnalysis.lostByBorrower[borrower] = 
+        (lostItemsAnalysis.lostByBorrower[borrower] || 0) + 1;
+
+      // Extract causes from notes and delay reasons
+      let cause = 'Unknown';
+      if (delayReason) {
+        cause = delayReason;
+      } else if (notes.includes('forgot') || notes.includes('lost')) {
+        cause = 'Forgot/Lost';
+      } else if (notes.includes('stolen') || notes.includes('theft')) {
+        cause = 'Theft';
+      } else if (notes.includes('damaged') && notes.includes('beyond repair')) {
+        cause = 'Damaged Beyond Repair';
+      } else if (notes) {
+        cause = 'Other (see notes)';
+      }
+
+      lostItemsAnalysis.causes[cause] = (lostItemsAnalysis.causes[cause] || 0) + 1;
+    });
+
+    lostItemsAnalysis.mostLostEquipment = Object.entries(lostItemsAnalysis.lostByEquipment)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 10)
+      .map(([equipment, count]) => ({ equipment, count }));
+
+    // 3. Late Returns Analysis
+    // Check history entries for returned items
+    const returnedEntries = historyValues.filter(h => {
+      if (!h.timestamp || new Date(h.timestamp) < cutoffDate) return false;
+      return h.action === 'Item Returned' || h.status === 'Returned';
+    });
+
+    const lateReturns = [];
+    const lateReturnReasons = {};
+
+    returnedEntries.forEach(entry => {
+      // Use dateToReturn from history entry (stored when return was recorded)
+      const dateToReturn = entry.dateToReturn;
+      if (!dateToReturn) return;
+
+      const returnDate = new Date(entry.returnDate || entry.timestamp);
+      const dueDate = new Date(dateToReturn);
+      
+      if (returnDate > dueDate) {
+        const daysLate = Math.ceil((returnDate - dueDate) / (1000 * 60 * 60 * 24));
+        const delayReason = entry.returnDetails?.delayReason || '';
+        const notes = (entry.returnDetails?.notes || '').toLowerCase();
+
+        lateReturns.push({
+          equipmentName: entry.equipmentName || 'Unknown',
+          categoryName: entry.categoryName || 'Unknown',
+          borrower: entry.borrower || entry.adviserName || 'Unknown',
+          daysLate,
+          delayReason,
+          notes: entry.returnDetails?.notes || '',
+          returnDate: entry.returnDate || entry.timestamp,
+          dueDate: dateToReturn
+        });
+
+        // Categorize reasons
+        let reason = 'No reason provided';
+        if (delayReason === 'late') {
+          if (notes.includes('forgot')) reason = 'Forgot to return';
+          else if (notes.includes('damaged') || notes.includes('broken')) reason = 'Equipment damaged/broken';
+          else if (notes.includes('still using') || notes.includes('needed')) reason = 'Still in use/needed';
+          else if (notes.includes('unavailable') || notes.includes('could not')) reason = 'Could not return (unavailable)';
+          else if (notes) reason = notes.substring(0, 50);
+          else reason = 'Late return';
+        }
+
+        lateReturnReasons[reason] = (lateReturnReasons[reason] || 0) + 1;
+      }
+    });
+
+    const lateReturnsAnalysis = {
+      totalLateReturns: lateReturns.length,
+      averageDaysLate: lateReturns.length > 0 
+        ? Math.round(lateReturns.reduce((sum, r) => sum + r.daysLate, 0) / lateReturns.length) 
+        : 0,
+      lateByEquipment: {},
+      lateByCategory: {},
+      lateByBorrower: {},
+      reasons: lateReturnReasons,
+      topReasons: Object.entries(lateReturnReasons)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 10)
+        .map(([reason, count]) => ({ reason, count }))
+    };
+
+    lateReturns.forEach(ret => {
+      lateReturnsAnalysis.lateByEquipment[ret.equipmentName] = 
+        (lateReturnsAnalysis.lateByEquipment[ret.equipmentName] || 0) + 1;
+      lateReturnsAnalysis.lateByCategory[ret.categoryName] = 
+        (lateReturnsAnalysis.lateByCategory[ret.categoryName] || 0) + 1;
+      lateReturnsAnalysis.lateByBorrower[ret.borrower] = 
+        (lateReturnsAnalysis.lateByBorrower[ret.borrower] || 0) + 1;
+    });
+
+    // 4. Approval Bottlenecks Analysis
+    const approvalBottlenecks = [];
+    const bottleneckByLab = {};
+    const bottleneckByCategory = {};
+
+    requests.forEach(req => {
+      if (!req.requestedAt || !req.updatedAt) return;
+      
+      const requestedAt = new Date(req.requestedAt);
+      if (requestedAt < cutoffDate) return;
+
+      // Find when request was approved
+      if (req.status === 'approved' || req.status === 'released' || req.status === 'in_progress') {
+        const updatedAt = new Date(req.updatedAt);
+        const approvalTimeHours = (updatedAt - requestedAt) / (1000 * 60 * 60);
+
+        // Consider > 24 hours as a bottleneck
+        if (approvalTimeHours > 24) {
+          approvalBottlenecks.push({
+            equipmentName: req.itemName || 'Unknown',
+            categoryName: req.categoryName || 'Unknown',
+            laboratory: req.laboratory || 'Unknown',
+            labId: req.labId || 'Unknown',
+            hoursToApprove: Math.round(approvalTimeHours * 10) / 10,
+            requestedAt: req.requestedAt,
+            approvedAt: req.updatedAt,
+            borrower: req.adviserName || 'Unknown'
+          });
+
+          const lab = req.laboratory || 'Unknown';
+          const category = req.categoryName || 'Unknown';
+          
+          bottleneckByLab[lab] = (bottleneckByLab[lab] || []).concat(approvalTimeHours);
+          bottleneckByCategory[category] = (bottleneckByCategory[category] || []).concat(approvalTimeHours);
+        }
+      }
+    });
+
+    // Calculate average approval times
+    const avgByLab = {};
+    Object.keys(bottleneckByLab).forEach(lab => {
+      const times = bottleneckByLab[lab];
+      avgByLab[lab] = Math.round((times.reduce((a, b) => a + b, 0) / times.length) * 10) / 10;
+    });
+
+    const avgByCategory = {};
+    Object.keys(bottleneckByCategory).forEach(cat => {
+      const times = bottleneckByCategory[cat];
+      avgByCategory[cat] = Math.round((times.reduce((a, b) => a + b, 0) / times.length) * 10) / 10;
+    });
+
+    const approvalBottlenecksAnalysis = {
+      totalBottlenecks: approvalBottlenecks.length,
+      averageApprovalTime: approvalBottlenecks.length > 0
+        ? Math.round((approvalBottlenecks.reduce((sum, b) => sum + b.hoursToApprove, 0) / approvalBottlenecks.length) * 10) / 10
+        : 0,
+      bottlenecksByLab: avgByLab,
+      bottlenecksByCategory: avgByCategory,
+      topSlowestLabs: Object.entries(avgByLab)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 10)
+        .map(([lab, avgHours]) => ({ lab, avgHours })),
+      topSlowestCategories: Object.entries(avgByCategory)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 10)
+        .map(([category, avgHours]) => ({ category, avgHours }))
+    };
+
+    return {
+      equipmentDamage: equipmentDamageAnalysis,
+      lostItems: lostItemsAnalysis,
+      lateReturns: lateReturnsAnalysis,
+      approvalBottlenecks: approvalBottlenecksAnalysis
+    };
+  };
+
   const getCategoryColor = (categoryName) => {
     const colors = [
       '#2aa59d', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
@@ -390,6 +643,12 @@ export default function Analytics() {
           onClick={() => setActiveTab("trends")}
         >
           Trends
+        </button>
+        <button 
+          className={`nav-tab ${activeTab === "diagnostics" ? "active" : ""}`}
+          onClick={() => setActiveTab("diagnostics")}
+        >
+          Diagnostics
         </button>
       </div>
 
@@ -564,6 +823,241 @@ export default function Analytics() {
                   ))}
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "diagnostics" && (
+          <div className="diagnostics-tab">
+            {/* Equipment Damage Analysis */}
+            <div className="diagnostic-section">
+              <h2>🔧 Equipment Damage Analysis</h2>
+              <div className="diagnostic-metrics">
+                <div className="metric-card warning">
+                  <div className="metric-value">{analyticsData.diagnosticAnalytics.equipmentDamage.totalDamageIncidents || 0}</div>
+                  <div className="metric-label">Total Damage Incidents</div>
+                </div>
+              </div>
+              
+              <div className="chart-card">
+                <h3>Most Frequently Damaged Equipment</h3>
+                <div className="diagnostic-list">
+                  {analyticsData.diagnosticAnalytics.equipmentDamage.mostDamagedEquipment?.length > 0 ? (
+                    analyticsData.diagnosticAnalytics.equipmentDamage.mostDamagedEquipment.map((item, index) => (
+                      <div key={item.equipment} className="diagnostic-item">
+                        <div className="diagnostic-rank">#{index + 1}</div>
+                        <div className="diagnostic-info">
+                          <div className="diagnostic-name">{item.equipment}</div>
+                          <div className="diagnostic-count">{item.count} {item.count === 1 ? 'incident' : 'incidents'}</div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="no-data-text">No damage incidents recorded in the selected period.</p>
+                  )}
+                </div>
+              </div>
+
+              {Object.keys(analyticsData.diagnosticAnalytics.equipmentDamage.damageByCategory || {}).length > 0 && (
+                <div className="chart-card">
+                  <h3>Damage by Category</h3>
+                  <div className="category-chart">
+                    {Object.entries(analyticsData.diagnosticAnalytics.equipmentDamage.damageByCategory)
+                      .sort(([,a], [,b]) => b - a)
+                      .slice(0, 5)
+                      .map(([category, count]) => (
+                        <div key={category} className="category-bar">
+                          <div className="category-label">{category}</div>
+                          <div className="category-bar-container">
+                            <div 
+                              className="category-bar-fill"
+                              style={{
+                                width: `${(count / Math.max(...Object.values(analyticsData.diagnosticAnalytics.equipmentDamage.damageByCategory))) * 100}%`,
+                                backgroundColor: '#ef4444'
+                              }}
+                            ></div>
+                            <span className="category-count">{count}</span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Lost/Missing Items Analysis */}
+            <div className="diagnostic-section">
+              <h2>🔍 Lost/Missing Items Analysis</h2>
+              <div className="diagnostic-metrics">
+                <div className="metric-card danger">
+                  <div className="metric-value">{analyticsData.diagnosticAnalytics.lostItems.totalLostItems || 0}</div>
+                  <div className="metric-label">Total Lost/Missing Items</div>
+                </div>
+              </div>
+
+              <div className="chart-card">
+                <h3>Most Frequently Lost Equipment</h3>
+                <div className="diagnostic-list">
+                  {analyticsData.diagnosticAnalytics.lostItems.mostLostEquipment?.length > 0 ? (
+                    analyticsData.diagnosticAnalytics.lostItems.mostLostEquipment.map((item, index) => (
+                      <div key={item.equipment} className="diagnostic-item">
+                        <div className="diagnostic-rank">#{index + 1}</div>
+                        <div className="diagnostic-info">
+                          <div className="diagnostic-name">{item.equipment}</div>
+                          <div className="diagnostic-count">{item.count} {item.count === 1 ? 'item' : 'items'}</div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="no-data-text">No lost/missing items recorded in the selected period.</p>
+                  )}
+                </div>
+              </div>
+
+              {Object.keys(analyticsData.diagnosticAnalytics.lostItems.causes || {}).length > 0 && (
+                <div className="chart-card">
+                  <h3>Identified Causes of Lost/Missing Items</h3>
+                  <div className="category-chart">
+                    {Object.entries(analyticsData.diagnosticAnalytics.lostItems.causes)
+                      .sort(([,a], [,b]) => b - a)
+                      .slice(0, 5)
+                      .map(([cause, count]) => (
+                        <div key={cause} className="category-bar">
+                          <div className="category-label">{cause}</div>
+                          <div className="category-bar-container">
+                            <div 
+                              className="category-bar-fill"
+                              style={{
+                                width: `${(count / Math.max(...Object.values(analyticsData.diagnosticAnalytics.lostItems.causes))) * 100}%`,
+                                backgroundColor: '#f59e0b'
+                              }}
+                            ></div>
+                            <span className="category-count">{count}</span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Late Returns Analysis */}
+            <div className="diagnostic-section">
+              <h2>⏰ Late Returns Analysis</h2>
+              <div className="diagnostic-metrics">
+                <div className="metric-card warning">
+                  <div className="metric-value">{analyticsData.diagnosticAnalytics.lateReturns.totalLateReturns || 0}</div>
+                  <div className="metric-label">Total Late Returns</div>
+                </div>
+                <div className="metric-card info">
+                  <div className="metric-value">{analyticsData.diagnosticAnalytics.lateReturns.averageDaysLate || 0}</div>
+                  <div className="metric-label">Average Days Late</div>
+                </div>
+              </div>
+
+              {analyticsData.diagnosticAnalytics.lateReturns.topReasons?.length > 0 && (
+                <div className="chart-card">
+                  <h3>Reasons for Late Returns</h3>
+                  <div className="category-chart">
+                    {analyticsData.diagnosticAnalytics.lateReturns.topReasons.map((reason, index) => (
+                      <div key={index} className="category-bar">
+                        <div className="category-label">{reason.reason}</div>
+                        <div className="category-bar-container">
+                          <div 
+                            className="category-bar-fill"
+                            style={{
+                              width: `${(reason.count / Math.max(...analyticsData.diagnosticAnalytics.lateReturns.topReasons.map(r => r.count))) * 100}%`,
+                              backgroundColor: '#3b82f6'
+                            }}
+                          ></div>
+                          <span className="category-count">{reason.count}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {Object.keys(analyticsData.diagnosticAnalytics.lateReturns.lateByEquipment || {}).length > 0 && (
+                <div className="chart-card">
+                  <h3>Equipment with Most Late Returns</h3>
+                  <div className="diagnostic-list">
+                    {Object.entries(analyticsData.diagnosticAnalytics.lateReturns.lateByEquipment)
+                      .sort(([,a], [,b]) => b - a)
+                      .slice(0, 10)
+                      .map(([equipment, count], index) => (
+                        <div key={equipment} className="diagnostic-item">
+                          <div className="diagnostic-rank">#{index + 1}</div>
+                          <div className="diagnostic-info">
+                            <div className="diagnostic-name">{equipment}</div>
+                            <div className="diagnostic-count">{count} {count === 1 ? 'late return' : 'late returns'}</div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Approval Bottlenecks Analysis */}
+            <div className="diagnostic-section">
+              <h2>🚧 Approval Process Bottlenecks</h2>
+              <div className="diagnostic-metrics">
+                <div className="metric-card danger">
+                  <div className="metric-value">{analyticsData.diagnosticAnalytics.approvalBottlenecks.totalBottlenecks || 0}</div>
+                  <div className="metric-label">Delayed Approvals (&gt;24 hours)</div>
+                </div>
+                <div className="metric-card info">
+                  <div className="metric-value">{analyticsData.diagnosticAnalytics.approvalBottlenecks.averageApprovalTime || 0}</div>
+                  <div className="metric-label">Avg. Approval Time (hours)</div>
+                </div>
+              </div>
+
+              {analyticsData.diagnosticAnalytics.approvalBottlenecks.topSlowestLabs?.length > 0 && (
+                <div className="chart-card">
+                  <h3>Laboratories with Slowest Approval Times</h3>
+                  <div className="category-chart">
+                    {analyticsData.diagnosticAnalytics.approvalBottlenecks.topSlowestLabs.map((lab, index) => (
+                      <div key={lab.lab} className="category-bar">
+                        <div className="category-label">{lab.lab}</div>
+                        <div className="category-bar-container">
+                          <div 
+                            className="category-bar-fill"
+                            style={{
+                              width: `${(lab.avgHours / Math.max(...analyticsData.diagnosticAnalytics.approvalBottlenecks.topSlowestLabs.map(l => l.avgHours))) * 100}%`,
+                              backgroundColor: '#8b5cf6'
+                            }}
+                          ></div>
+                          <span className="category-count">{lab.avgHours}h</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {analyticsData.diagnosticAnalytics.approvalBottlenecks.topSlowestCategories?.length > 0 && (
+                <div className="chart-card">
+                  <h3>Equipment Categories with Slowest Approval Times</h3>
+                  <div className="category-chart">
+                    {analyticsData.diagnosticAnalytics.approvalBottlenecks.topSlowestCategories.map((category, index) => (
+                      <div key={category.category} className="category-bar">
+                        <div className="category-label">{category.category}</div>
+                        <div className="category-bar-container">
+                          <div 
+                            className="category-bar-fill"
+                            style={{
+                              width: `${(category.avgHours / Math.max(...analyticsData.diagnosticAnalytics.approvalBottlenecks.topSlowestCategories.map(c => c.avgHours))) * 100}%`,
+                              backgroundColor: '#ec4899'
+                            }}
+                          ></div>
+                          <span className="category-count">{category.avgHours}h</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

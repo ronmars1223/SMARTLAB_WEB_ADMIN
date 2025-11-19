@@ -695,6 +695,7 @@ export default function RequestFormsPage() {
       action: 'Item Returned',
       releasedDate: request.requestedAt || request.dateToBeUsed || returnedAt,
       returnDate: returnedAt,
+      dateToReturn: request.dateToReturn || null, // Store expected return date for late returns analysis
       condition: conditionText,
       timestamp: returnedAt,
       processedBy: returnDetails?.processedBy || 'Admin',
