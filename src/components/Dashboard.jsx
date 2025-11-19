@@ -298,7 +298,8 @@ export default function Dashboard() {
 
         // Calculate statistics
         const pendingCount = requests.filter(req => req.status === 'pending').length;
-        const borrowedCount = requests.filter(req => req.status === 'in_progress' || req.status === 'approved').length;
+        // Count items that are actually released (physically borrowed), not just approved
+        const borrowedCount = requests.filter(req => req.status === 'released' || req.status === 'in_progress').length;
 
         const overdueCount = requests.filter(req => {
           if (req.dateToReturn && (req.status === 'approved' || req.status === 'released' || req.status === 'in_progress')) {
@@ -307,14 +308,35 @@ export default function Dashboard() {
           return false;
         }).length;
 
-        // Create borrowing chart data
-        const categoryData = {};
+        // Create borrowing chart data - count items that were actually borrowed
+        // Includes: released (currently borrowed) and returned (were borrowed)
+        const itemData = {};
+        const countedRequests = []; // For debugging
+        
         requests.forEach(req => {
-          const category = req.categoryName || 'Other';
-          categoryData[category] = (categoryData[category] || 0) + 1;
+          // Count requests that were actually borrowed (released, in_progress, or returned)
+          if (req.status === 'released' || req.status === 'in_progress' || req.status === 'returned') {
+            const itemName = req.itemName || 'Unknown Item';
+            itemData[itemName] = (itemData[itemName] || 0) + 1;
+            // Debug: Track which requests are being counted
+            countedRequests.push({
+              id: req.id,
+              categoryName: req.categoryName,
+              itemName: itemName,
+              status: req.status,
+              requestedAt: req.requestedAt
+            });
+          }
         });
 
-        const chartData = Object.entries(categoryData).map(([name, value]) => ({
+        // Debug log to verify data
+        console.log('📊 Top 5 Borrowed Items - Debug Info:');
+        console.log('Total requests loaded:', requests.length);
+        console.log('Requests counted for chart:', countedRequests.length);
+        console.log('Item breakdown:', itemData);
+        console.log('Detailed counted requests:', countedRequests);
+
+        const chartData = Object.entries(itemData).map(([name, value]) => ({
           name,
           value
         }));
@@ -770,7 +792,7 @@ export default function Dashboard() {
               <div className="chart-card">
                 <div className="chart-header">
                   <h3>Top 5 Borrowed Items</h3>
-                  <p>Most frequently borrowed equipment categories</p>
+                  <p>Most frequently borrowed equipment items</p>
                 </div>
                 <div className="chart-container">
                   <div className="bar-chart">

@@ -35,7 +35,7 @@ export default function Sidebar({ activeSection, onSectionChange }) {
     },
     {
       id: "request-forms",
-      label: "Request Forms",
+      label: "Item Request",
       icon: "📋",
       roles: ["laboratory_manager"],
       description: "View and manage borrow requests"
