@@ -54,15 +54,17 @@ export const createNotification = async ({
  * @param {Object} requestData - The request data
  * @param {Object} equipmentData - The equipment data
  * @param {Object} laboratoryData - The laboratory data
+ * @param {string} studentName - The name of the student who borrowed the equipment
  */
-export const notifyNewRequest = async (requestData, equipmentData, laboratoryData) => {
+export const notifyNewRequest = async (requestData, equipmentData, laboratoryData, studentName) => {
   if (!equipmentData.labId || !laboratoryData) {
     console.log('No lab information available for notification');
     return;
   }
 
+  const borrowerName = studentName || requestData.adviserName || "Unknown Student";
   const title = "New Equipment Request";
-  const message = `Student ${requestData.adviserName} has requested to borrow "${requestData.itemName}" from ${laboratoryData.labName}. Please review the request.`;
+  const message = `Student ${borrowerName} has requested to borrow "${requestData.itemName}" from ${laboratoryData.labName}. Please review the request.`;
 
   await createNotification({
     type: 'new_request',
@@ -73,7 +75,7 @@ export const notifyNewRequest = async (requestData, equipmentData, laboratoryDat
     recipientUserId: laboratoryData.managerUserId, // Target the laboratory manager directly
     metadata: {
       requestId: requestData.id,
-      studentName: requestData.adviserName,
+      studentName: borrowerName,
       equipmentName: requestData.itemName,
       requestDate: requestData.requestedAt || requestData.dateToBeUsed
     }
@@ -86,15 +88,17 @@ export const notifyNewRequest = async (requestData, equipmentData, laboratoryDat
  * @param {Object} equipmentData - The equipment data
  * @param {Object} laboratoryData - The laboratory data
  * @param {string} approvedBy - Who approved the request
+ * @param {string} studentName - The name of the student who borrowed the equipment
  */
-export const notifyRequestApproved = async (requestData, equipmentData, laboratoryData, approvedBy) => {
+export const notifyRequestApproved = async (requestData, equipmentData, laboratoryData, approvedBy, studentName) => {
   if (!equipmentData.labId || !laboratoryData) {
     console.log('No lab information available for notification');
     return;
   }
 
+  const borrowerName = studentName || requestData.adviserName || "Unknown Student";
   const title = "Equipment Request Approved";
-  const message = `The request for "${requestData.itemName}" by ${requestData.adviserName} has been approved by ${approvedBy}. Please prepare the equipment for release.`;
+  const message = `The request for "${requestData.itemName}" by ${borrowerName} has been approved by ${approvedBy}. Please prepare the equipment for release.`;
 
   await createNotification({
     type: 'request_approved',
@@ -105,7 +109,7 @@ export const notifyRequestApproved = async (requestData, equipmentData, laborato
     recipientUserId: laboratoryData.managerUserId, // Target the laboratory manager directly
     metadata: {
       requestId: requestData.id,
-      studentName: requestData.adviserName,
+      studentName: borrowerName,
       equipmentName: requestData.itemName,
       approvedBy,
       approvedAt: new Date().toISOString(),
@@ -120,15 +124,17 @@ export const notifyRequestApproved = async (requestData, equipmentData, laborato
  * @param {Object} equipmentData - The equipment data
  * @param {Object} laboratoryData - The laboratory data
  * @param {string} rejectedBy - Who rejected the request
+ * @param {string} studentName - The name of the student who borrowed the equipment
  */
-export const notifyRequestRejected = async (requestData, equipmentData, laboratoryData, rejectedBy) => {
+export const notifyRequestRejected = async (requestData, equipmentData, laboratoryData, rejectedBy, studentName) => {
   if (!equipmentData.labId || !laboratoryData) {
     console.log('No lab information available for notification');
     return;
   }
 
+  const borrowerName = studentName || requestData.adviserName || "Unknown Student";
   const title = "Equipment Request Rejected";
-  const message = `The request for "${requestData.itemName}" by ${requestData.adviserName} has been rejected by ${rejectedBy}.`;
+  const message = `The request for "${requestData.itemName}" by ${borrowerName} has been rejected by ${rejectedBy}.`;
 
   await createNotification({
     type: 'request_rejected',
@@ -139,7 +145,7 @@ export const notifyRequestRejected = async (requestData, equipmentData, laborato
     recipientUserId: laboratoryData.managerUserId, // Target the laboratory manager directly
     metadata: {
       requestId: requestData.id,
-      studentName: requestData.adviserName,
+      studentName: borrowerName,
       equipmentName: requestData.itemName,
       rejectedBy,
       rejectedAt: new Date().toISOString()
@@ -153,15 +159,17 @@ export const notifyRequestRejected = async (requestData, equipmentData, laborato
  * @param {Object} equipmentData - The equipment data
  * @param {Object} laboratoryData - The laboratory data
  * @param {Object} returnDetails - Return details
+ * @param {string} studentName - The name of the student who borrowed the equipment
  */
-export const notifyEquipmentReturned = async (requestData, equipmentData, laboratoryData, returnDetails) => {
+export const notifyEquipmentReturned = async (requestData, equipmentData, laboratoryData, returnDetails, studentName) => {
   if (!equipmentData.labId || !laboratoryData) {
     console.log('No lab information available for notification');
     return;
   }
 
+  const borrowerName = studentName || requestData.adviserName || "Unknown Student";
   const title = "Equipment Returned";
-  const message = `"${requestData.itemName}" has been returned by ${requestData.adviserName}. Please check the equipment condition.`;
+  const message = `"${requestData.itemName}" has been returned by ${borrowerName}. Please check the equipment condition.`;
 
   await createNotification({
     type: 'equipment_returned',
@@ -172,7 +180,7 @@ export const notifyEquipmentReturned = async (requestData, equipmentData, labora
     recipientUserId: laboratoryData.managerUserId, // Target the laboratory manager directly
     metadata: {
       requestId: requestData.id,
-      studentName: requestData.adviserName,
+      studentName: borrowerName,
       equipmentName: requestData.itemName,
       returnedAt: new Date().toISOString(),
       returnDetails
@@ -186,15 +194,17 @@ export const notifyEquipmentReturned = async (requestData, equipmentData, labora
  * @param {Object} equipmentData - The equipment data
  * @param {Object} laboratoryData - The laboratory data
  * @param {number} daysOverdue - Number of days overdue
+ * @param {string} studentName - The name of the student who borrowed the equipment
  */
-export const notifyEquipmentOverdue = async (requestData, equipmentData, laboratoryData, daysOverdue) => {
+export const notifyEquipmentOverdue = async (requestData, equipmentData, laboratoryData, daysOverdue, studentName) => {
   if (!equipmentData.labId || !laboratoryData) {
     console.log('No lab information available for notification');
     return;
   }
 
+  const borrowerName = studentName || requestData.adviserName || "Unknown Student";
   const title = "Equipment Overdue";
-  const message = `"${requestData.itemName}" borrowed by ${requestData.adviserName} is ${daysOverdue} day${daysOverdue > 1 ? 's' : ''} overdue. Expected return date was ${new Date(requestData.dateToReturn).toLocaleDateString()}.`;
+  const message = `"${requestData.itemName}" borrowed by ${borrowerName} is ${daysOverdue} day${daysOverdue > 1 ? 's' : ''} overdue. Expected return date was ${new Date(requestData.dateToReturn).toLocaleDateString()}.`;
 
   await createNotification({
     type: 'equipment_overdue',
@@ -205,7 +215,7 @@ export const notifyEquipmentOverdue = async (requestData, equipmentData, laborat
     recipientUserId: laboratoryData.managerUserId, // Target the laboratory manager directly
     metadata: {
       requestId: requestData.id,
-      studentName: requestData.adviserName,
+      studentName: borrowerName,
       equipmentName: requestData.itemName,
       expectedReturnDate: requestData.dateToReturn,
       daysOverdue,

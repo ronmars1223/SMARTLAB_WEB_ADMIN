@@ -147,7 +147,8 @@ export default function RequestFormsPage() {
       const laboratory = laboratories.find(lab => lab.labId === equipment?.labId);
       
       if (equipment && laboratory) {
-        await notifyNewRequest(request, equipment, laboratory);
+        const studentName = getBorrowerName(request.userId);
+        await notifyNewRequest(request, equipment, laboratory, studentName);
       }
       
       // Mark as processed
