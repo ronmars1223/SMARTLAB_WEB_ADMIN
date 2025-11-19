@@ -291,8 +291,19 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
     return matchesSearch && matchesStatus && matchesPriority;
   });
 
-  // Filter scheduled maintenance
+  // Filter scheduled maintenance - exclude completed items
   const filteredScheduledMaintenance = scheduledMaintenance.filter(schedule => {
+    // Check if this scheduled maintenance has been completed
+    const isCompleted = maintenanceRecords.some(record => 
+      record.equipmentId === schedule.equipmentId &&
+      record.description === schedule.description &&
+      record.type === schedule.type &&
+      record.status === "Completed"
+    );
+    
+    // Exclude completed maintenance from scheduled/upcoming lists
+    if (isCompleted) return false;
+    
     const matchesSearch = !searchTerm || 
       getEquipmentName(schedule.equipmentId).toLowerCase().includes(searchTerm.toLowerCase()) ||
       schedule.description?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -354,7 +365,7 @@ export default function EquipmentMaintenance({ categories, equipments, selectedC
           className={`nav-tab ${activeSubTab === "scheduled" ? "active" : ""}`}
         >
           <span className="nav-tab-icon">📅</span>
-          Scheduled Maintenance ({scheduledMaintenance.length})
+          Scheduled Maintenance ({filteredScheduledMaintenance.length})
         </button>
         <button
           onClick={() => setActiveSubTab("upcoming")}

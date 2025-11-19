@@ -879,6 +879,11 @@
 
 .chart-header {
   margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 15px;
 }
 
 .chart-header h3 {

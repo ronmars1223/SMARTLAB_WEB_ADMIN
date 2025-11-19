@@ -45,6 +45,7 @@ export default function Dashboard() {
   const [equipmentData, setEquipmentData] = useState([]);
   const [laboratories, setLaboratories] = useState([]);
   const [users, setUsers] = useState([]);
+  const [borrowingTimeFilter, setBorrowingTimeFilter] = useState('all'); // 'all', 'week', 'month'
 
   const normalizeText = (value) => (value || "").toString().trim().toLowerCase();
 
@@ -308,33 +309,40 @@ export default function Dashboard() {
           return false;
         }).length;
 
+        // Filter requests by time period
+        const now = new Date();
+        let filteredRequestsForChart = requests;
+        
+        if (borrowingTimeFilter === 'week') {
+          const weekAgo = new Date(now);
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          filteredRequestsForChart = requests.filter(req => {
+            const requestDate = req.requestedAt || req.releasedAt || req.updatedAt;
+            if (!requestDate) return false;
+            return new Date(requestDate) >= weekAgo;
+          });
+        } else if (borrowingTimeFilter === 'month') {
+          const monthAgo = new Date(now);
+          monthAgo.setMonth(monthAgo.getMonth() - 1);
+          filteredRequestsForChart = requests.filter(req => {
+            const requestDate = req.requestedAt || req.releasedAt || req.updatedAt;
+            if (!requestDate) return false;
+            return new Date(requestDate) >= monthAgo;
+          });
+        }
+        // 'all' - no filtering needed
+
         // Create borrowing chart data - count items that were actually borrowed
         // Includes: released (currently borrowed) and returned (were borrowed)
         const itemData = {};
-        const countedRequests = []; // For debugging
         
-        requests.forEach(req => {
+        filteredRequestsForChart.forEach(req => {
           // Count requests that were actually borrowed (released, in_progress, or returned)
           if (req.status === 'released' || req.status === 'in_progress' || req.status === 'returned') {
             const itemName = req.itemName || 'Unknown Item';
             itemData[itemName] = (itemData[itemName] || 0) + 1;
-            // Debug: Track which requests are being counted
-            countedRequests.push({
-              id: req.id,
-              categoryName: req.categoryName,
-              itemName: itemName,
-              status: req.status,
-              requestedAt: req.requestedAt
-            });
           }
         });
-
-        // Debug log to verify data
-        console.log('📊 Top 5 Borrowed Items - Debug Info:');
-        console.log('Total requests loaded:', requests.length);
-        console.log('Requests counted for chart:', countedRequests.length);
-        console.log('Item breakdown:', itemData);
-        console.log('Detailed counted requests:', countedRequests);
 
         const chartData = Object.entries(itemData).map(([name, value]) => ({
           name,
@@ -342,6 +350,7 @@ export default function Dashboard() {
         }));
 
         setBorrowingData(chartData);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
 
         // Calculate adviser vs student borrowing statistics
         let adviserBorrowings = 0;
@@ -432,7 +441,7 @@ export default function Dashboard() {
       unsubscribeUsers();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, requestBelongsToAssignedLabs, users]);
+  }, [isAdmin, requestBelongsToAssignedLabs, users, borrowingTimeFilter]);
 
   useEffect(() => {
     let equipmentList = equipmentData;
@@ -620,7 +629,6 @@ export default function Dashboard() {
   }, [isAdmin, isLaboratoryManager, getAssignedLaboratoryIds, laboratories, getBorrowerName, users]);
 
   const handleSectionChange = (section) => {
-    console.log("Section changed to:", section); // Debug log
     setActiveSection(section);
   };
 
@@ -706,8 +714,6 @@ export default function Dashboard() {
   };
 
   const renderContent = () => {
-    console.log("Rendering content for section:", activeSection); // Debug log
-    
     switch (activeSection) {
       case "dashboard":
         return (
@@ -791,8 +797,28 @@ export default function Dashboard() {
               {/* Top Borrowed Items Chart */}
               <div className="chart-card">
                 <div className="chart-header">
-                  <h3>Top 5 Borrowed Items</h3>
-                  <p>Most frequently borrowed equipment items</p>
+                  <div>
+                    <h3>Top 5 Borrowed Items</h3>
+                    <p>Most frequently borrowed equipment items</p>
+                  </div>
+                  <select 
+                    className="time-filter-select"
+                    value={borrowingTimeFilter}
+                    onChange={(e) => setBorrowingTimeFilter(e.target.value)}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid #ddd',
+                      backgroundColor: '#fff',
+                      fontSize: '14px',
+                      cursor: 'pointer',
+                      marginLeft: 'auto'
+                    }}
+                  >
+                    <option value="all">All Time</option>
+                    <option value="month">Last Month</option>
+                    <option value="week">Last Week</option>
+                  </select>
                 </div>
                 <div className="chart-container">
                   <div className="bar-chart">
