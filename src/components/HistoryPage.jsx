@@ -22,7 +22,6 @@ export default function HistoryPage() {
   const [itemsPerPage] = useState(10);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [activeTab, setActiveTab] = useState("overview");
 
   const statuses = ["Released", "Returned", "Pending", "Approved", "Rejected", "In Progress", "Completed", "Cancelled"];
 
@@ -229,13 +228,11 @@ export default function HistoryPage() {
   const handleViewDetails = (entry) => {
     setSelectedEntry(entry);
     setShowDetailsModal(true);
-    setActiveTab("overview"); // Reset to first tab
   };
 
   const closeDetailsModal = () => {
     setSelectedEntry(null);
     setShowDetailsModal(false);
-    setActiveTab("overview");
   };
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
@@ -272,95 +269,6 @@ export default function HistoryPage() {
     return false;
   };
 
-  // Calculate real usage data from Firebase data
-  const calculateUsageData = (equipmentName) => {
-    // Filter history data for the specific equipment
-    const equipmentHistory = historyData.filter(entry => 
-      entry.equipmentName === equipmentName
-    );
-
-    // Count total borrowings (each "Item Released" action counts as one borrowing)
-    const totalBorrowings = equipmentHistory.filter(entry => 
-      entry.action === "Item Released"
-    ).length;
-
-    // Count borrowings by user type (students vs faculty)
-    let studentBorrowings = 0;
-    let facultyBorrowings = 0;
-
-    equipmentHistory.forEach(entry => {
-      if (entry.action === "Item Released") {
-        // Enhanced user type detection
-        const isFaculty = determineUserType(entry);
-        
-        if (isFaculty) {
-          facultyBorrowings++;
-        } else {
-          studentBorrowings++;
-        }
-      }
-    });
-
-    return {
-      total: totalBorrowings,
-      students: studentBorrowings,
-      faculty: facultyBorrowings
-    };
-  };
-
-  // Calculate usage statistics for the selected equipment
-  const calculateUsageStatistics = (equipmentName) => {
-    const equipmentHistory = historyData.filter(entry => 
-      entry.equipmentName === equipmentName
-    );
-
-    if (equipmentHistory.length === 0) {
-      return {
-        mostActivePeriod: "No data available",
-        averageUsage: "0 times/month",
-        utilizationRate: "0%"
-      };
-    }
-
-    // Calculate most active period (month with most borrowings)
-    const monthlyData = {};
-    equipmentHistory.forEach(entry => {
-      if (entry.action === "Item Released" && entry.timestamp) {
-        const date = new Date(entry.timestamp);
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        monthlyData[monthKey] = (monthlyData[monthKey] || 0) + 1;
-      }
-    });
-
-    const mostActiveMonth = Object.entries(monthlyData).reduce((max, [month, count]) => 
-      count > max.count ? { month, count } : max, 
-      { month: "No data", count: 0 }
-    );
-
-    // Format the most active period
-    const formatMonth = (monthKey) => {
-      const [year, month] = monthKey.split('-');
-      const monthNames = ["January", "February", "March", "April", "May", "June",
-                         "July", "August", "September", "October", "November", "December"];
-      return `${monthNames[parseInt(month) - 1]} ${year}`;
-    };
-
-    // Calculate average usage per month
-    const totalMonths = Object.keys(monthlyData).length;
-    const totalBorrowings = Object.values(monthlyData).reduce((sum, count) => sum + count, 0);
-    const averageUsage = totalMonths > 0 ? (totalBorrowings / totalMonths).toFixed(1) : "0";
-
-    // Calculate utilization rate (simplified: percentage of months with activity)
-    const monthsWithActivity = Object.keys(monthlyData).length;
-    const totalPossibleMonths = Math.max(1, Math.ceil((new Date() - new Date(equipmentHistory[equipmentHistory.length - 1]?.timestamp || new Date())) / (1000 * 60 * 60 * 24 * 30)));
-    const utilizationRate = Math.round((monthsWithActivity / totalPossibleMonths) * 100);
-
-    return {
-      mostActivePeriod: mostActiveMonth.month !== "No data" ? formatMonth(mostActiveMonth.month) : "No data available",
-      averageUsage: `${averageUsage} times/month`,
-      utilizationRate: `${utilizationRate}%`
-    };
-  };
 
 
 
@@ -595,26 +503,8 @@ export default function HistoryPage() {
               <button onClick={closeDetailsModal} className="modal-close">×</button>
             </div>
             
-            {/* Tab Navigation */}
-            <div className="tab-navigation">
-              <button 
-                className={`tab-button ${activeTab === 'overview' ? 'active' : ''}`}
-                onClick={() => setActiveTab('overview')}
-              >
-                📋 Overview
-              </button>
-              <button 
-                className={`tab-button ${activeTab === 'usage' ? 'active' : ''}`}
-                onClick={() => setActiveTab('usage')}
-              >
-                📊 Usage Report
-              </button>
-            </div>
-
             <div className="modal-body">
-              {/* Overview Tab */}
-              {activeTab === 'overview' && (
-                <div className="tab-content">
+              <div className="tab-content">
                   <div className="modal-details">
                     <div className="detail-item">
                       <div className="detail-label">Action:</div>
@@ -662,61 +552,6 @@ export default function HistoryPage() {
                 </div>
               )}
 
-              {/* Usage Report Tab */}
-              {activeTab === 'usage' && (
-                <div className="tab-content">
-                  <div className="usage-report">
-                    <h3 className="report-title">📊 Equipment Usage Report</h3>
-                    <div className="usage-table-container">
-                      <table className="usage-table">
-                        <thead>
-                          <tr>
-                            <th>Equipment Name</th>
-                            <th>Total Borrowed</th>
-                            <th>Borrowed by Students</th>
-                            <th>Borrowed by Faculty</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(() => {
-                            const usageData = calculateUsageData(selectedEntry.equipmentName);
-                            return (
-                              <tr>
-                                <td>{selectedEntry.equipmentName}</td>
-                                <td>{usageData.total} times</td>
-                                <td>{usageData.students}</td>
-                                <td>{usageData.faculty}</td>
-                              </tr>
-                            );
-                          })()}
-                        </tbody>
-                      </table>
-                    </div>
-                    
-                    <div className="usage-summary">
-                      {(() => {
-                        const usageStats = calculateUsageStatistics(selectedEntry.equipmentName);
-                        return (
-                          <>
-                            <div className="summary-card">
-                              <div className="summary-title">Most Active Period</div>
-                              <div className="summary-value">{usageStats.mostActivePeriod}</div>
-                            </div>
-                            <div className="summary-card">
-                              <div className="summary-title">Average Usage</div>
-                              <div className="summary-value">{usageStats.averageUsage}</div>
-                            </div>
-                            <div className="summary-card">
-                              <div className="summary-title">Utilization Rate</div>
-                              <div className="summary-value">{usageStats.utilizationRate}</div>
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              )              }
             </div>
 
             <div className="modal-footer">

@@ -6,6 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 // Import EquipmentMaintenance - adjust path as needed
 import EquipmentMaintenance from "./equipment/EquipmentMaintenance";
 import "../CSS/Equipment.css";
+import "../CSS/HistoryPage.css";
 
 export default function EquipmentPage() {
   const { isAdmin, getAssignedLaboratoryIds, assignedLaboratories, isLaboratoryManager } = useAuth();
@@ -57,6 +58,9 @@ export default function EquipmentPage() {
   
   const [equipmentImage, setEquipmentImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [historyData, setHistoryData] = useState([]);
+  const [showUsageReportModal, setShowUsageReportModal] = useState(false);
+  const [selectedEquipmentForReport, setSelectedEquipmentForReport] = useState(null);
 
   const fetchCategories = useCallback(() => {
     try {
@@ -191,6 +195,26 @@ export default function EquipmentPage() {
       console.log('[EquipmentPage] isLaboratoryManager:', isLaboratoryManager());
     }
   }, [assignedLaboratories, isLaboratoryManager]);
+
+  // Load history data for usage reports
+  useEffect(() => {
+    const historyRef = ref(database, 'history');
+    
+    const unsubscribe = onValue(historyRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const historyList = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+        setHistoryData(historyList);
+      } else {
+        setHistoryData([]);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (!selectedCategory) return;
@@ -569,6 +593,126 @@ export default function EquipmentPage() {
     } catch (error) {
       console.error("Error updating category counts:", error);
     }
+  };
+
+  // Helper function to get user role from userId
+  const getUserRole = (userId) => {
+    if (!userId) return null;
+    const user = users.find(u => u.id === userId || u.userId === userId);
+    return user?.role || null;
+  };
+
+  // Determine if user is faculty or student
+  const determineUserType = (entry) => {
+    const userId = entry.userId || entry.details?.originalRequest?.userId || null;
+    
+    if (userId) {
+      const userRole = getUserRole(userId);
+      
+      if (userRole === 'admin' || userRole === 'laboratory_manager') {
+        return true; // Faculty
+      }
+      
+      if (userRole === 'student') {
+        return false; // Student
+      }
+    }
+    
+    return false; // Default to student
+  };
+
+  // Calculate usage data for equipment
+  const calculateUsageData = (equipmentName) => {
+    const equipmentHistory = historyData.filter(entry => 
+      entry.equipmentName === equipmentName
+    );
+
+    const totalBorrowings = equipmentHistory.filter(entry => 
+      entry.action === "Item Released"
+    ).length;
+
+    let studentBorrowings = 0;
+    let facultyBorrowings = 0;
+
+    equipmentHistory.forEach(entry => {
+      if (entry.action === "Item Released") {
+        const isFaculty = determineUserType(entry);
+        
+        if (isFaculty) {
+          facultyBorrowings++;
+        } else {
+          studentBorrowings++;
+        }
+      }
+    });
+
+    return {
+      total: totalBorrowings,
+      students: studentBorrowings,
+      faculty: facultyBorrowings
+    };
+  };
+
+  // Calculate usage statistics
+  const calculateUsageStatistics = (equipmentName) => {
+    const equipmentHistory = historyData.filter(entry => 
+      entry.equipmentName === equipmentName
+    );
+
+    if (equipmentHistory.length === 0) {
+      return {
+        mostActivePeriod: "No data available",
+        averageUsage: "0 times/month",
+        utilizationRate: "0%"
+      };
+    }
+
+    // Calculate most active period (month with most borrowings)
+    const monthlyData = {};
+    equipmentHistory.forEach(entry => {
+      if (entry.action === "Item Released" && entry.timestamp) {
+        const date = new Date(entry.timestamp);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        monthlyData[monthKey] = (monthlyData[monthKey] || 0) + 1;
+      }
+    });
+
+    const mostActiveMonth = Object.entries(monthlyData).reduce((max, [month, count]) => 
+      count > max.count ? { month, count } : max, 
+      { month: "No data", count: 0 }
+    );
+
+    // Format the most active period
+    const formatMonth = (monthKey) => {
+      if (monthKey === "No data") return "No data available";
+      const [year, month] = monthKey.split('-');
+      const monthNames = ["January", "February", "March", "April", "May", "June",
+                         "July", "August", "September", "October", "November", "December"];
+      return `${monthNames[parseInt(month) - 1]} ${year}`;
+    };
+
+    // Calculate average usage per month
+    const totalMonths = Object.keys(monthlyData).length;
+    const totalBorrowings = Object.values(monthlyData).reduce((sum, count) => sum + count, 0);
+    const averageUsage = totalMonths > 0 ? (totalBorrowings / totalMonths).toFixed(1) : "0";
+
+    // Calculate utilization rate (percentage of months with activity)
+    const allMonths = Object.keys(monthlyData);
+    const monthsWithActivity = allMonths.filter(month => monthlyData[month] > 0).length;
+    const utilizationRate = allMonths.length > 0 
+      ? ((monthsWithActivity / allMonths.length) * 100).toFixed(0)
+      : "0";
+
+    return {
+      mostActivePeriod: formatMonth(mostActiveMonth.month),
+      averageUsage: `${averageUsage} times/month`,
+      utilizationRate: `${utilizationRate}%`
+    };
+  };
+
+  const handleViewUsageReport = (equipment) => {
+    setSelectedEquipmentForReport(equipment);
+    setShowUsageReportModal(true);
   };
 
   const handleEditCategory = (category) => {
@@ -1242,6 +1386,13 @@ export default function EquipmentPage() {
                           <td className="actions-cell">
                             <div className="action-buttons">
                               <button
+                                onClick={() => handleViewUsageReport(equipment)}
+                                className="btn btn-info btn-xs"
+                                style={{ backgroundColor: '#3b82f6', color: 'white', marginRight: '4px' }}
+                              >
+                                📊 Report
+                              </button>
+                              <button
                                 onClick={() => handleEditEquipment(equipment)}
                                 className="btn btn-outline btn-xs"
                               >
@@ -1680,6 +1831,86 @@ export default function EquipmentPage() {
                 : (editingCategory ? "Updating category..." : "Adding category...")
               }
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Usage Report Modal */}
+      {showUsageReportModal && selectedEquipmentForReport && (
+        <div className="modal-overlay" onClick={() => setShowUsageReportModal(false)}>
+          <div className="modal-content enhanced-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">
+                📊 Usage Report - {selectedEquipmentForReport.name}
+              </h2>
+              <button 
+                onClick={() => setShowUsageReportModal(false)} 
+                className="modal-close"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="usage-report">
+                <div className="usage-table-container">
+                  <table className="usage-table">
+                    <thead>
+                      <tr>
+                        <th>Equipment Name</th>
+                        <th>Total Borrowed</th>
+                        <th>Borrowed by Students</th>
+                        <th>Borrowed by Faculty</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const usageData = calculateUsageData(selectedEquipmentForReport.name);
+                        return (
+                          <tr>
+                            <td>{selectedEquipmentForReport.name}</td>
+                            <td>{usageData.total} times</td>
+                            <td>{usageData.students}</td>
+                            <td>{usageData.faculty}</td>
+                          </tr>
+                        );
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+                
+                <div className="usage-summary">
+                  {(() => {
+                    const usageStats = calculateUsageStatistics(selectedEquipmentForReport.name);
+                    return (
+                      <>
+                        <div className="summary-card">
+                          <div className="summary-title">Most Active Period</div>
+                          <div className="summary-value">{usageStats.mostActivePeriod}</div>
+                        </div>
+                        <div className="summary-card">
+                          <div className="summary-title">Average Usage</div>
+                          <div className="summary-value">{usageStats.averageUsage}</div>
+                        </div>
+                        <div className="summary-card">
+                          <div className="summary-title">Utilization Rate</div>
+                          <div className="summary-value">{usageStats.utilizationRate}</div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button 
+                onClick={() => setShowUsageReportModal(false)} 
+                className="close-button"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
